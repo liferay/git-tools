@@ -1,5 +1,4 @@
-Git Tools
-=========
+Git Pull Request
+================
 
-This repository is a collection of scripts and other tools that the developers of Liferay
-use to help speed up their git workflow.
+Git Pull Request is a script that let's you manage, view and submit pull requests from the command line.
