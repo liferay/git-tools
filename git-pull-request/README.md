@@ -8,11 +8,11 @@ Based on scripts by Connor McKay<connor.mckay@liferay.com>, Andreas Gohr <andi@s
 
 1.	First clone this repository to a directory of your choice.
 
-		$ git clone git://github.com/greneholt/git-pull-request.git
+		$ git clone git://github.com/liferay/git-tools.git
 
 2.	Then edit your bash profile and add the following line:
 
-		alias gitpr="source YOUR_DIRECTORY/git-pull-request/git-pull-request.sh"
+		alias gitpr="source YOUR_DIRECTORY/git-tools/git-pull-request/git-pull-request.sh"
 	
 3.	Go to <https://github.com/account/admin> to find your API token. Then edit
 	your `.gitconfig` file and add the following:
