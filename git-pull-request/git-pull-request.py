@@ -854,7 +854,13 @@ def main():
 		command_show(repo_name)
 
 def open_URL(url):
-	os.system('open -g "%s"' % url)
+	if (os.popen('command -v open').read().strip() != ''):
+		try:
+			os.system('open -g "%s"' % url)
+		except Exception, e:
+			os.system('open "%s"' % url)
+	elif (os.popen('command -v cygstart').read().strip() != ''):
+		os.system('cygstart "%s"' % url)
 
 def post_comment(repo_name, pull_request_ID, comment):
 	url = "http://github.com/api/v2/json/issues/comment/%s/%s" % (repo_name, pull_request_ID)
