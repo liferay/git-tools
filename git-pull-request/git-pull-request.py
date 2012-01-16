@@ -841,7 +841,7 @@ def main():
 					command_update(repo_name, args[1])
 			else:
 				command_update(repo_name)
-		elif args[0] == 'stat':
+		elif args[0] == 'stats' || args[0] == 'stat':
 			pull_request_ID = None
 
 			if len(args) >= 2:
