@@ -158,7 +158,7 @@ def build_branch_name(pull_request):
 
 	request_id = pull_request['number']
 
-	m = re.search("^[A-Z]{3,}-\d+", ref)
+	m = re.search("[A-Z]{3,}-\d+", ref)
 
 	branch_name = 'pull-request-%s' % request_id
 
