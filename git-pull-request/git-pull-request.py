@@ -115,6 +115,9 @@ options = {
 	'color-display-info-total-title': 'green',
 	'color-display-info-total-count': 'magenta',
 
+	# Disable the color scheme
+	'enable-color': True,
+
 	# Sets the default comment to post when closing a pull request.
 	'close-default-comment': None,
 
@@ -210,21 +213,24 @@ def color_text(text, token, bold = False):
 
 	# http://travelingfrontiers.wordpress.com/2010/08/22/how-to-add-colors-to-linux-command-line-output/
 
-	color_name = options["color-%s" % token]
+	if options['enable-color'] == True:
+		color_name = options["color-%s" % token]
 
-	if color_name == 'default' or not sys.stdout.isatty():
-		return text
+		if color_name == 'default' or not sys.stdout.isatty():
+			return text
 
-	colors = (
-		'black', 'red', 'green', 'yellow',
-		'blue', 'magenta', 'cyan', 'white'
-	)
+		colors = (
+			'black', 'red', 'green', 'yellow',
+			'blue', 'magenta', 'cyan', 'white'
+		)
 
-	if color_name in colors:
-		return u"\033[{0};{1}m{2}\033[0m".format(
-			int(bold),
-			colors.index(color_name) + 30,
-			text)
+		if color_name in colors:
+			return u"\033[{0};{1}m{2}\033[0m".format(
+				int(bold),
+				colors.index(color_name) + 30,
+				text)
+		else:
+			return text
 	else:
 		return text
 
