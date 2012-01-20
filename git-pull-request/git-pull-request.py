@@ -861,10 +861,11 @@ def main():
 
 def open_URL(url):
 	if (os.popen('command -v open').read().strip() != ''):
-		try:
-			os.system('open -g "%s"' % url)
-		except Exception, e:
+		ret = os.system('open -g "%s" 2>/dev/null' % url)
+
+		if ret != 0:
 			os.system('open "%s"' % url)
+
 	elif (os.popen('command -v cygstart').read().strip() != ''):
 		os.system('cygstart "%s"' % url)
 
