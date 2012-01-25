@@ -76,6 +76,10 @@ Commands:
 		Updates the current pull request or the specified request with the local
 		changes in master, using either a rebase or merge.
 
+	update_users
+		Updates the file configured in github.users.filename variable. This file contains all the 
+		github names indexed by the email (without the @liferay.com suffix).
+
 Copyright (C) 2011 Liferay, Inc. <http://liferay.com>
 
 Based on scripts by:
@@ -91,6 +95,7 @@ import base64
 import getopt
 import json
 import os
+import pickle
 import re
 import sys
 import urllib
@@ -507,6 +512,30 @@ def command_update(repo_name, target = None):
 	print
 	display_status()
 
+def command_update_users(filename):
+	
+	data = github_json_request("https://api.github.com/orgs/liferay/members", authenticate = False)	
+	
+	github_users = {}
+
+	for member in data:		
+		login = member['login']
+		github_user_info = github_json_request("https://api.github.com/users/%s" % login, authenticate = False)
+
+		try:
+			email = github_user_info['email'].split("@")[0]
+		except Exception:
+			email = login
+
+		github_users[email] = login
+
+	github_users_file = open(filename, 'w')	
+	pickle.dump(github_users, github_users_file)
+
+	github_users_file.close()
+
+	return github_users
+
 def command_pull(repo_name):
 	"""Pulls changes from the remote branch into the local branch of the pull
 	request"""
@@ -691,14 +720,16 @@ def get_repo_url(pull_request):
 
 	return repo_url
 
-def github_json_request(url, params = None):
+def github_json_request(url, params = None, authenticate = True):
 	if params is not None:
 		data = urllib.urlencode(params)
 		req = urllib2.Request(url, data)
 	else:
 		req = urllib2.Request(url)
 
-	authorize_request(req)
+	if authenticate:
+		authorize_request(req)
+
 	print url
 
 	try:
@@ -735,6 +766,19 @@ def load_options():
 
 		options[k[0]] = value
 
+def load_users(filename):
+	try:
+		github_users_file = open(filename, 'r')	
+	except IOError:
+		print "File %s could not be found. Using email names will not be available. Run the update_users command to enable this funcionality" % filename
+		return {}
+	
+	github_users = pickle.load(github_users_file)
+	
+	github_users_file.close()
+
+	return github_users
+
 def main():
 	# parse command line options
 	try:
@@ -749,7 +793,7 @@ def main():
 	# load git options
 	load_options()
 
-	global auth_string
+	global auth_string, users
 
 	repo_name = None
 	reviewer_repo_name = None
@@ -772,8 +816,8 @@ def main():
 	fetch_auto_update = options['fetch-auto-update']
 
 	info_user = username
-	submitOpenGitHub = options['submit-open-github']
-
+	submitOpenGitHub = options['submit-open-github']	
+	
 	# process options
 	for o, a in opts:
 		if o in ('-h', '--help'):
@@ -792,8 +836,19 @@ def main():
 			reviewer_repo_name = a
 		elif o == '--update':
 			fetch_auto_update = True
+		elif o == '--update_users':
+			update_users = True
 		elif o == '--no-update':
 			fetch_auto_update = False
+
+	# manage github usernames	
+	github_users_filename = os.popen('git config github.users.filename').read().strip()	
+
+	if len(github_users_filename) == 0:
+		github_users_filename = "github.users"
+			
+	if len(args) > 0 and args[0] != "update_users":
+		users = load_users(github_users_filename)				
 
 	# get repo name from git config
 	if repo_name is None or repo_name == '':
@@ -841,12 +896,19 @@ def main():
 			if len(args) >= 3:
 				pull_title = args[2]
 
+			try:
+				reviewer_repo_name = users[reviewer_repo_name]
+			except Exception:
+				UserWarning("Cannot find username %s in the users map. The pull request will be sent to " % reviewer_repo_name)
+
 			command_submit(repo_name, username, reviewer_repo_name, pull_body, pull_title, submitOpenGitHub)
 		elif args[0] == 'update':
 			if len(args) >= 2:
 					command_update(repo_name, args[1])
 			else:
-				command_update(repo_name)
+				command_update(repo_name)		
+		elif args[0] == 'update_users':
+			command_update_users(github_users_filename)
 		elif args[0] == 'stats' or args[0] == 'stat':
 			pull_request_ID = None
 
