@@ -30,6 +30,10 @@ Commands:
 	#no command# <pull request ID>
 		Performs a fetch.
 
+	alias <name> <githubname>
+		Create an alias for the github name so you can use it in your git-pr submit
+		command.
+
 	close [<comment>]
 		Closes the current pull request on github and deletes the pull request
 		branch.
@@ -238,6 +242,17 @@ def color_text(text, token, bold = False):
 			return text
 	else:
 		return text
+
+def command_alias(alias, githubname, filename):
+	try:
+		users[alias] = githubname
+	except Exception:
+		raise UserWarning('Error while updating the alias for %s' % alias)
+	
+	github_users_file = open(filename, 'w')	
+	pickle.dump(users, github_users_file)
+
+	github_users_file.close()
 
 def command_fetch(repo_name, pull_request_ID, auto_update = False):
 	"""Fetches a pull request into a local branch"""
@@ -859,7 +874,10 @@ def main():
 
 	# process arguments
 	if len(args) > 0:
-		if args[0] == 'close':
+		if args[0] == 'alias':
+			if len(args) >= 2:
+				command_alias(args[1], args[2], github_users_filename)
+		elif args[0] == 'close':
 			if len(args) >= 2:
 				command_close(repo_name, args[1])
 			else:
