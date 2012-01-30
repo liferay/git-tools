@@ -81,7 +81,7 @@ Copyright (C) 2011 Liferay, Inc. <http://liferay.com>
 Based on scripts by:
 Connor McKay<connor.mckay@liferay.com>
 Andreas Gohr <andi@splitbrain.org>
-Minchau Dang<minchau.dang@liferay.com>
+Minhchau Dang<minhchau.dang@liferay.com>
 Nate Cavanaugh<nathan.cavanaugh@liferay.com>
 
 Released under the MIT License.
