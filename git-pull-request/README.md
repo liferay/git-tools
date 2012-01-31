@@ -29,3 +29,10 @@ Based on scripts by Connor McKay<connor.mckay@liferay.com>, Andreas Gohr <andi@s
 	To see a list of all possible commands, run:
 	
 		gitpr help
+
+5. If you want to use the alias ability you need to configure your git repo with
+ 		
+		git config github.users.filename PATH_TO_YOUR_FILE 	
+	
+	And run the command gitpr update-users. This command will populate the previous file
+	with all the info of the users who has forked your upstream repository

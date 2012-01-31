@@ -67,6 +67,9 @@ Commands:
 		Pulls remote changes from the other user's remote branch into the local
 		pull request branch.
 
+	show-alias <alias>
+		Shows the githu username pointed by the indicated alias.
+	
 	stats
 		Fetches all open pull requests on this repository and displays them along
 		with statistics about the pull requests and how many changes (along with how many
@@ -80,9 +83,9 @@ Commands:
 		Updates the current pull request or the specified request with the local
 		changes in master, using either a rebase or merge.
 
-	update_users
+	update-users
 		Updates the file configured in github.users.filename variable. This file contains all the 
-		github names indexed by the email (without the @liferay.com suffix).
+		github names indexed by the email (without the @ email suffix).
 
 Copyright (C) 2011 Liferay, Inc. <http://liferay.com>
 
@@ -91,6 +94,7 @@ Connor McKay<connor.mckay@liferay.com>
 Andreas Gohr <andi@splitbrain.org>
 Minchau Dang<minchau.dang@liferay.com>
 Nate Cavanaugh<nathan.cavanaugh@liferay.com>
+Miguel Pastor<miguel.pastor@liferay.com>
 
 Released under the MIT License.
 """
@@ -99,7 +103,6 @@ import base64
 import getopt
 import json
 import os
-import pickle
 import re
 import sys
 import urllib
@@ -250,7 +253,7 @@ def command_alias(alias, githubname, filename):
 		raise UserWarning('Error while updating the alias for %s' % alias)
 	
 	github_users_file = open(filename, 'w')	
-	pickle.dump(users, github_users_file)
+	json.dump(users, github_users_file)
 
 	github_users_file.close()
 
@@ -417,6 +420,15 @@ def command_show(repo_name):
 
 	display_status()
 
+def command_show_alias(alias):
+	""" Shows the username where the alias points to
+	"""
+	try:
+		github_user =	users[alias]
+		print "The alias %s points to %s " % (alias, github_user)
+	except KeyError, keyError:
+		print "The alias % s does not exists in the current mapping file" % alias
+
 def get_pr_stats(repo_name, pull_request_ID):
 	if pull_request_ID != None:
 		is_int = False
@@ -529,12 +541,12 @@ def command_update(repo_name, target = None):
 
 def command_update_users(filename):
 	
-	data = github_json_request("https://api.github.com/orgs/liferay/members", authenticate = False)	
+	upstream_forks = github_json_request("http://github.com/api/v2/json/repos/show/%s/network" % get_repo_name_for_remote("upstream"), authenticate = False)	
 	
 	github_users = {}
 
-	for member in data:		
-		login = member['login']
+	for fork in upstream_forks["network"]:		
+		login = fork['owner']
 		github_user_info = github_json_request("https://api.github.com/users/%s" % login, authenticate = False)
 
 		try:
@@ -545,7 +557,7 @@ def command_update_users(filename):
 		github_users[email] = login
 
 	github_users_file = open(filename, 'w')	
-	pickle.dump(github_users, github_users_file)
+	json.dump(github_users, github_users_file)
 
 	github_users_file.close()
 
@@ -788,7 +800,7 @@ def load_users(filename):
 		print "File %s could not be found. Using email names will not be available. Run the update_users command to enable this funcionality" % filename
 		return {}
 	
-	github_users = pickle.load(github_users_file)
+	github_users = json.load(github_users_file)
 	
 	github_users_file.close()
 
@@ -851,8 +863,6 @@ def main():
 			reviewer_repo_name = a
 		elif o == '--update':
 			fetch_auto_update = True
-		elif o == '--update_users':
-			update_users = True
 		elif o == '--no-update':
 			fetch_auto_update = False
 
@@ -862,7 +872,7 @@ def main():
 	if len(github_users_filename) == 0:
 		github_users_filename = "github.users"
 			
-	if len(args) > 0 and args[0] != "update_users":
+	if len(args) > 0 and args[0] != "update-users":
 		users = load_users(github_users_filename)				
 
 	# get repo name from git config
@@ -925,8 +935,11 @@ def main():
 					command_update(repo_name, args[1])
 			else:
 				command_update(repo_name)		
-		elif args[0] == 'update_users':
+		elif args[0] == 'update-users':
 			command_update_users(github_users_filename)
+		elif args[0] == 'show-alias':
+			if len(args) >= 2:
+				command_show_alias (args[1])				
 		elif args[0] == 'stats' or args[0] == 'stat':
 			pull_request_ID = None
 
