@@ -30,6 +30,10 @@ Commands:
 	#no command# <pull request ID>
 		Performs a fetch.
 
+	alias <name> <githubname>
+		Create an alias for the github name so you can use it in your git-pr submit
+		command.
+
 	close [<comment>]
 		Closes the current pull request on github and deletes the pull request
 		branch.
@@ -63,6 +67,9 @@ Commands:
 		Pulls remote changes from the other user's remote branch into the local
 		pull request branch.
 
+	show-alias <alias>
+		Shows the githu username pointed by the indicated alias.
+	
 	stats
 		Fetches all open pull requests on this repository and displays them along
 		with statistics about the pull requests and how many changes (along with how many
@@ -76,6 +83,10 @@ Commands:
 		Updates the current pull request or the specified request with the local
 		changes in master, using either a rebase or merge.
 
+	update-users
+		Updates the file configured in github.users.filename variable. This file contains all the 
+		github names indexed by the email (without the @ email suffix).
+
 Copyright (C) 2011 Liferay, Inc. <http://liferay.com>
 
 Based on scripts by:
@@ -83,6 +94,7 @@ Connor McKay<connor.mckay@liferay.com>
 Andreas Gohr <andi@splitbrain.org>
 Minhchau Dang<minhchau.dang@liferay.com>
 Nate Cavanaugh<nathan.cavanaugh@liferay.com>
+Miguel Pastor<miguel.pastor@liferay.com>
 
 Released under the MIT License.
 """
@@ -233,6 +245,17 @@ def color_text(text, token, bold = False):
 			return text
 	else:
 		return text
+
+def command_alias(alias, githubname, filename):
+	try:
+		users[alias] = githubname
+	except Exception:
+		raise UserWarning('Error while updating the alias for %s' % alias)
+	
+	github_users_file = open(filename, 'w')	
+	json.dump(users, github_users_file)
+
+	github_users_file.close()
 
 def command_fetch(repo_name, pull_request_ID, auto_update = False):
 	"""Fetches a pull request into a local branch"""
@@ -397,6 +420,15 @@ def command_show(repo_name):
 
 	display_status()
 
+def command_show_alias(alias):
+	""" Shows the username where the alias points to
+	"""
+	try:
+		github_user =	users[alias]
+		print "The alias %s points to %s " % (alias, github_user)
+	except KeyError, keyError:
+		print "The alias % s does not exists in the current mapping file" % alias
+
 def get_pr_stats(repo_name, pull_request_ID):
 	if pull_request_ID != None:
 		is_int = False
@@ -506,6 +538,30 @@ def command_update(repo_name, target = None):
 	update_branch(branch_name)
 	print
 	display_status()
+
+def command_update_users(filename):
+	
+	upstream_forks = github_json_request("http://github.com/api/v2/json/repos/show/%s/network" % get_repo_name_for_remote("upstream"), authenticate = False)	
+	
+	github_users = {}
+
+	for fork in upstream_forks["network"]:		
+		login = fork['owner']
+		github_user_info = github_json_request("https://api.github.com/users/%s" % login, authenticate = False)
+
+		try:
+			email = github_user_info['email'].split("@")[0]
+		except Exception:
+			email = login
+
+		github_users[email] = login
+
+	github_users_file = open(filename, 'w')	
+	json.dump(github_users, github_users_file)
+
+	github_users_file.close()
+
+	return github_users
 
 def command_pull(repo_name):
 	"""Pulls changes from the remote branch into the local branch of the pull
@@ -691,14 +747,16 @@ def get_repo_url(pull_request):
 
 	return repo_url
 
-def github_json_request(url, params = None):
+def github_json_request(url, params = None, authenticate = True):
 	if params is not None:
 		data = urllib.urlencode(params)
 		req = urllib2.Request(url, data)
 	else:
 		req = urllib2.Request(url)
 
-	authorize_request(req)
+	if authenticate:
+		authorize_request(req)
+
 	print url
 
 	try:
@@ -735,6 +793,19 @@ def load_options():
 
 		options[k[0]] = value
 
+def load_users(filename):
+	try:
+		github_users_file = open(filename, 'r')	
+	except IOError:
+		print "File %s could not be found. Using email names will not be available. Run the update_users command to enable this funcionality" % filename
+		return {}
+	
+	github_users = json.load(github_users_file)
+	
+	github_users_file.close()
+
+	return github_users
+
 def main():
 	# parse command line options
 	try:
@@ -749,7 +820,7 @@ def main():
 	# load git options
 	load_options()
 
-	global auth_string
+	global auth_string, users
 
 	repo_name = None
 	reviewer_repo_name = None
@@ -772,8 +843,8 @@ def main():
 	fetch_auto_update = options['fetch-auto-update']
 
 	info_user = username
-	submitOpenGitHub = options['submit-open-github']
-
+	submitOpenGitHub = options['submit-open-github']	
+	
 	# process options
 	for o, a in opts:
 		if o in ('-h', '--help'):
@@ -795,6 +866,15 @@ def main():
 		elif o == '--no-update':
 			fetch_auto_update = False
 
+	# manage github usernames	
+	github_users_filename = os.popen('git config github.users.filename').read().strip()	
+
+	if len(github_users_filename) == 0:
+		github_users_filename = "github.users"
+			
+	if len(args) > 0 and args[0] != "update-users":
+		users = load_users(github_users_filename)				
+
 	# get repo name from git config
 	if repo_name is None or repo_name == '':
 		repo_name = get_default_repo_name()
@@ -804,7 +884,10 @@ def main():
 
 	# process arguments
 	if len(args) > 0:
-		if args[0] == 'close':
+		if args[0] == 'alias':
+			if len(args) >= 2:
+				command_alias(args[1], args[2], github_users_filename)
+		elif args[0] == 'close':
 			if len(args) >= 2:
 				command_close(repo_name, args[1])
 			else:
@@ -841,12 +924,22 @@ def main():
 			if len(args) >= 3:
 				pull_title = args[2]
 
+			try:
+				reviewer_repo_name = users[reviewer_repo_name]
+			except Exception:
+				UserWarning("Cannot find username %s in the users map. The pull request will be sent to " % reviewer_repo_name)
+
 			command_submit(repo_name, username, reviewer_repo_name, pull_body, pull_title, submitOpenGitHub)
 		elif args[0] == 'update':
 			if len(args) >= 2:
 					command_update(repo_name, args[1])
 			else:
-				command_update(repo_name)
+				command_update(repo_name)		
+		elif args[0] == 'update-users':
+			command_update_users(github_users_filename)
+		elif args[0] == 'show-alias':
+			if len(args) >= 2:
+				command_show_alias (args[1])				
 		elif args[0] == 'stats' or args[0] == 'stat':
 			pull_request_ID = None
 
