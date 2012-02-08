@@ -51,6 +51,9 @@ Commands:
 		Displays a list of all the user's github repositories and the number
 		of pull requests open on each.
 
+	info-detailed
+		Displays the same information as "info" but also lists the pull requests for each one (by user)
+
 	merge
 		Merges the current pull request branch into master and deletes the
 		branch.
@@ -309,7 +312,7 @@ def command_fetch_all(repo_name):
 def command_help():
 	print __doc__
 
-def command_info(username):
+def command_info(username, detailed = False):
 	print color_text("Loading information on repositories for %s" % username, 'status')
 	print
 
@@ -328,12 +331,20 @@ def command_info(username):
 
 			print "  %s: %s" % (color_text(base_name, 'display-info-repo-title'), color_text(issue_count, 'display-info-repo-count'))
 
+			if detailed:
+				pull_requests = get_pull_requests(repo_name)
+
+				for pull_request in pull_requests:
+					name = (pull_request['user'].get('name') or pull_request['user'].get('login')).encode('utf-8')
+					print "    %s by %s" % (color_text("REQ %s" % pull_request.get('number'), 'display-title-number', True), color_text(name, 'display-title-user'))
+
 			total += issue_count
 
 	print "-"
-	print "%s: %s" % (color_text("Total pull requests", 'display-info-total-title', True), color_text(total, 'display-info-total-count', True))
+	out = "%s: %s" % (color_text("Total pull requests", 'display-info-total-title', True), color_text(total, 'display-info-total-count', True))
 	print
 	display_status()
+	return out
 
 def command_merge(repo_name, comment = None):
 	"""Merges changes from the local pull request branch into master and deletes
@@ -592,7 +603,9 @@ def display_status():
 	"""Displays the current branch name"""
 
 	branch_name = get_current_branch_name(False)
-	print "Current branch: %s" % branch_name
+	out = "Current branch: %s" % branch_name
+	print out
+	return out
 
 def fetch_pull_request(pull_request):
 	"""Fetches a pull request into a local branch, and returns the name of the
@@ -602,6 +615,9 @@ def fetch_pull_request(pull_request):
 	repo_url = get_repo_url(pull_request)
 
 	remote_branch_name = pull_request['head']['ref']
+
+
+	# print json.dumps(pull_request,sort_keys=True, indent=4)
 
 	ret = os.system('git fetch %s %s:%s' % (repo_url, remote_branch_name, branch_name))
 
@@ -819,6 +835,8 @@ def main():
 			command_help()
 		elif args[0] == 'info':
 			command_info(info_user)
+		elif args[0] == 'info-detailed':
+			command_info(info_user, True)
 		elif args[0] == 'merge':
 			if len(args) >= 2:
 				command_merge(repo_name, args[1])
@@ -879,7 +897,7 @@ def update_branch(branch_name):
 		raise UserWarning("Cannot perform an update from within the work directory.\nIf you are done fixing conflicts run 'gitpr continue-update' to complete the update.")
 
 	if options['work-dir']:
-		print color_text("Switching to work directory", 'status')
+		print color_text("Switching to work directory %s" % options['work-dir'], 'status')
 		os.chdir(options['work-dir'])
 		ret = os.system('git reset --hard && git clean -f')
 		if ret != 0:
