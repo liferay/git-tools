@@ -55,7 +55,7 @@ Commands:
 		Displays the same information as "info" but also lists the pull requests for each one (by user)
 
 	merge
-		Merges the current pull request branch into master and deletes the
+		Merges the current pull request branch into the update-branch and deletes the
 		branch.
 
 	open [<pull request ID>]
@@ -77,7 +77,7 @@ Commands:
 
 	update [<pull request ID or branch name>]
 		Updates the current pull request or the specified request with the local
-		changes in master, using either a rebase or merge.
+		changes in the update-branch, using either a rebase or merge.
 
 Copyright (C) 2011 Liferay, Inc. <http://liferay.com>
 
@@ -136,8 +136,11 @@ options = {
 	# them.
 	'merge-auto-close': True,
 
+	# Sets the branch to use where updates are merged from or to.
+	'update-branch': 'master',
+
 	# Sets the method to use when updating pull request branches with changes
-	# in master.
+	# in the update-branch.
 	# Possible options: 'merge', 'rebase'
 	'update-method': 'merge',
 
@@ -274,9 +277,11 @@ def command_close(repo_name, comment = None):
 
 	close_pull_request(repo_name, pull_request_ID, comment)
 
-	ret = os.system('git checkout master')
+	update_branch_option = options['update-branch']
+
+	ret = os.system('git checkout %s' % update_branch_option)
 	if ret != 0:
-		raise UserWarning("Could not checkout master")
+		raise UserWarning("Could not checkout %s" % update_branch_option)
 
 	print color_text("Deleting branch %s" % branch_name, 'status')
 	ret = os.system('git branch -D %s' % branch_name)
@@ -289,7 +294,7 @@ def command_close(repo_name, comment = None):
 	display_status()
 
 def command_continue_update():
-	print color_text("Continuing update from master", 'status')
+	print color_text("Continuing update from %s" % options['update-branch'], 'status')
 
 	continue_update()
 	print
@@ -321,7 +326,7 @@ def command_info(username, detailed = False):
 	repos = data['repositories']
 	# print json.dumps(data,sort_keys=True, indent=4)
 	total = 0
-	issue_list = {}
+
 	for pull_request_info in repos:
 		issue_count = pull_request_info['open_issues']
 
@@ -347,22 +352,24 @@ def command_info(username, detailed = False):
 	return out
 
 def command_merge(repo_name, comment = None):
-	"""Merges changes from the local pull request branch into master and deletes
+	"""Merges changes from the local pull request branch into the update-branch and deletes
 	the pull request branch"""
 
 	branch_name = get_current_branch_name()
 	pull_request_ID = get_pull_request_ID(branch_name)
 
-	print color_text("Merging %s into master" % branch_name, 'status')
+	update_branch_option = options['update-branch']
+
+	print color_text("Merging %s into %s" % (branch_name, update_branch_option), 'status')
 	print
 
-	ret = os.system('git checkout master')
+	ret = os.system('git checkout %s' % update_branch_option)
 	if ret != 0:
-		raise UserWarning("Could not checkout master")
+		raise UserWarning("Could not checkout %s" % update_branch_option)
 
 	ret = os.system('git merge %s' % branch_name)
 	if ret != 0:
-		raise UserWarning("Merge with master failed. Resolve conflicts, switch back into the pull request branch, and merge again")
+		raise UserWarning("Merge with %s failed. Resolve conflicts, switch back into the pull request branch, and merge again" % update_branch_option)
 
 	print color_text("Deleting branch %s" % branch_name, 'status')
 	ret = os.system('git branch -D %s' % branch_name)
@@ -430,7 +437,7 @@ def get_pr_stats(repo_name, pull_request_ID):
 			if  ret != 0:
 				raise UserWarning("Fetch failed")
 
-		merge_base = os.popen('git merge-base master %s' % branch_name).read().strip()
+		merge_base = os.popen('git merge-base %s %s' % (options['update-branch'], branch_name)).read().strip()
 		ret = os.system("git --no-pager diff --shortstat {0}..{1} && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | awk '{{print $3}}' | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name))
 		print
 	else:
@@ -478,7 +485,7 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 		# pull_body = raw_input("Comment: ").strip()
 
 	params = {
-		'pull[base]': 'master',
+		'pull[base]': options['update-branch'],
 		'pull[head]': "%s:%s" % (username, branch_name),
 		'pull[title]': pull_title,
 		'pull[body]': pull_body
@@ -512,7 +519,7 @@ def command_update(repo_name, target = None):
 		except ValueError:
 			branch_name = target
 
-	print color_text("Updating %s from master" % branch_name, 'status')
+	print color_text("Updating %s from %s" % (branch_name, options['update-branch']), 'status')
 
 	update_branch(branch_name)
 	print
@@ -543,15 +550,20 @@ def command_pull(repo_name):
 	display_status()
 
 def complete_update(branch_name):
+	update_branch_option = options['update-branch']
+
 	if in_work_dir():
-		ret = os.system('git checkout master')
+		ret = os.system('git checkout %s' % update_branch_option)
 		if ret != 0:
-			raise UserWarning("Could not checkout master branch in work directory")
+			raise UserWarning("Could not checkout %s branch in work directory" % update_branch_option)
 
 		original_dir_path = get_original_dir_path()
-		print color_text("Switching to original directory", 'status')
+
+		print color_text("Switching to original directory: '%s'" % original_dir_path, 'status')
+
 		os.chdir(original_dir_path)
 		chdir(original_dir_path)
+
 		if get_current_branch_name(False) == branch_name:
 			ret = os.system('git reset --hard && git clean -f')
 			if ret != 0:
@@ -562,7 +574,7 @@ def complete_update(branch_name):
 				raise UserWarning("Could not checkout %s" % branch_name)
 
 	print
-	print color_text("Updating %s from master complete" % branch_name, 'success')
+	print color_text("Updating %s from %s complete" % (branch_name, update_branch_option), 'success')
 
 def continue_update():
 	if options['update-method'] == 'merge':
@@ -571,7 +583,7 @@ def continue_update():
 		ret = os.system('git rebase --continue')
 
 	if ret != 0:
-		raise UserWarning("Updating from master failed\nResolve conflicts and 'git add' files, then run 'gitpr continue-update'")
+		raise UserWarning("Updating from %s failed\nResolve conflicts and 'git add' files, then run 'gitpr continue-update'" % options['update-branch'])
 
 	# The branch name will not be correct until the merge/rebase is complete
 	branch_name = get_current_branch_name()
@@ -660,8 +672,43 @@ def get_git_base_path():
 
 def get_original_dir_path():
 	git_base_path = get_git_base_path()
-	config_path = os.readlink(os.path.join(git_base_path, '.git', 'config'))
-	return os.path.dirname(os.path.dirname(config_path))
+
+	f = open(os.path.join(get_work_dir(), '.git', 'original_dir_path'), 'rb')
+	original_dir_path = f.read()
+	f.close()
+
+	if original_dir_path == None or original_dir_path == '':
+		config_path = os.readlink(os.path.join(git_base_path, '.git', 'config'))
+		original_dir_path = os.path.dirname(os.path.dirname(config_path))
+
+	return original_dir_path
+
+def get_work_dir():
+	global _work_dir
+
+	if (_work_dir == None):
+		symbolic_ref = os.popen('git symbolic-ref HEAD').read().strip().replace('refs/heads/', '')
+		work_dir_global = options['work-dir']
+
+		work_dir_option = None
+
+		if symbolic_ref:
+			work_dir_option = 'work-dir-%s' % symbolic_ref
+
+		if work_dir_option:
+			_work_dir = os.popen('git config git-pull-request.%s' % work_dir_option).read().strip()
+			options[work_dir_option] = _work_dir
+
+		if not os.path.exists(_work_dir):
+			_work_dir = False
+
+		if not _work_dir:
+			if work_dir_global and os.path.exists(work_dir_global):
+				_work_dir = work_dir_global
+			else:
+				_work_dir = False
+
+	return _work_dir
 
 def get_pull_request(repo_name, pull_request_ID):
 	"""Returns information retrieved from github about the pull request"""
@@ -733,7 +780,9 @@ def github_json_request(url, params = None):
 def in_work_dir():
 	git_base_path = get_git_base_path()
 
-	return os.path.islink(os.path.join(git_base_path, '.git', 'config'))
+	work_dir = get_work_dir()
+
+	return git_base_path == work_dir and os.path.islink(os.path.join(git_base_path, '.git', 'config'))
 
 def load_options():
 	all_config = os.popen('git config -l').read().strip()
@@ -766,6 +815,9 @@ def main():
 	load_options()
 
 	global auth_string
+	global _work_dir
+
+	_work_dir = None
 
 	repo_name = None
 	reviewer_repo_name = None
@@ -896,21 +948,32 @@ def update_branch(branch_name):
 	if in_work_dir():
 		raise UserWarning("Cannot perform an update from within the work directory.\nIf you are done fixing conflicts run 'gitpr continue-update' to complete the update.")
 
-	if options['work-dir']:
-		print color_text("Switching to work directory %s" % options['work-dir'], 'status')
-		os.chdir(options['work-dir'])
+	work_dir = get_work_dir()
+
+	if work_dir:
+		original_dir_path = get_git_base_path()
+
+		print color_text("Switching to work directory %s" % work_dir, 'status')
+		os.chdir(work_dir)
+
+		f = open(os.path.join(work_dir, '.git', 'original_dir_path'), 'wb')
+		f.write(original_dir_path)
+		f.close()
+
 		ret = os.system('git reset --hard && git clean -f')
 		if ret != 0:
 			raise UserWarning("Cleaning up work directory failed, update not performed")
 
 	ret = os.system('git checkout %s' % branch_name)
 	if ret != 0:
-		if options['work-dir']:
+		if work_dir:
 			raise UserWarning("Could not checkout %s in the work directory, update not performed" % branch_name)
 		else:
 			raise UserWarning("Could not checkout %s, update not performed" % branch_name)
 
-	parent_commit = os.popen('git merge-base master %s' % branch_name).read().strip()
+	update_branch_option = options['update-branch']
+
+	parent_commit = os.popen('git merge-base %s %s' % (update_branch_option, branch_name)).read().strip()
 	head_commit = os.popen('git rev-parse HEAD').read().strip()
 
 	if parent_commit == head_commit:
@@ -925,15 +988,12 @@ def update_branch(branch_name):
 
 	print color_text("Original commits: %s" % branch_treeish, 'status')
 
-	if options['update-method'] == 'merge':
-		ret = os.system('git merge master')
-	elif options['update-method'] == 'rebase':
-		ret = os.system('git rebase master')
+	ret = os.system('git %(update-method)s %(update-branch)s' % (options))
 
 	if ret != 0:
-		if options['work-dir']:
-			chdir(options['work-dir'])
-		raise UserWarning("Updating %s from master failed\nResolve conflicts and 'git add' files, then run 'gitpr continue-update'" % branch_name)
+		if work_dir:
+			chdir(work_dir)
+		raise UserWarning("Updating %s from %s failed\nResolve conflicts and 'git add' files, then run 'gitpr continue-update'" % (branch_name, update_branch_option))
 
 	complete_update(branch_name)
 
