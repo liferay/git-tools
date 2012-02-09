@@ -101,6 +101,15 @@ import urllib2
 # import isodate
 # from datetime import date
 
+# Connecting through a proxy,
+# requires: socks.py from http://socksipy.sourceforge.net/ next to this file
+
+#import socket
+#import socks
+
+#socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, "localhost", 8181)
+#socket.socket = socks.socksocket
+
 from textwrap import fill
 
 options = {
