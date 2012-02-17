@@ -815,7 +815,7 @@ def load_options():
 def main():
 	# parse command line options
 	try:
-		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqr:u:l:b:', ['help', 'quiet', 'repo=', 'reviewer=', 'update', 'no-update', 'user=', '--update-branch'])
+		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqr:u:l:b:', ['help', 'quiet', 'repo=', 'reviewer=', 'update', 'no-update', 'user=', 'update-branch='])
 	except getopt.GetoptError, e:
 		raise UserWarning("%s\nFor help use --help" % e)
 
