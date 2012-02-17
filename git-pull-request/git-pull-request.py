@@ -22,6 +22,9 @@ Options:
 		or 'github.reviewer' git config setting. This can be either a username
 		or a full repository name (user/repo).
 
+	-b <branch>, --update-branch <branch>
+		Specify the target branch on the reviewer github repository to submit the pull request.
+
 Commands:
 
 	#no command#
@@ -812,7 +815,7 @@ def load_options():
 def main():
 	# parse command line options
 	try:
-		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqr:u:l:', ['help', 'quiet', 'repo=', 'reviewer=', 'update', 'no-update', 'user='])
+		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqr:u:l:b:', ['help', 'quiet', 'repo=', 'reviewer=', 'update', 'no-update', 'user=', '--update-branch'])
 	except getopt.GetoptError, e:
 		raise UserWarning("%s\nFor help use --help" % e)
 
@@ -865,6 +868,8 @@ def main():
 				repo_name = a
 			else:
 				repo_name = get_repo_name_for_remote(a)
+		elif o in ('-b', '--update-branch'):
+			options['update-branch'] = a
 		elif o in ('-u', '--reviewer'):
 			reviewer_repo_name = a
 		elif o == '--update':
