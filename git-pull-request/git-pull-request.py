@@ -813,7 +813,7 @@ def load_options():
 def main():
 	# parse command line options
 	try:
-		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqr:u:b:l', ['help', 'quiet', 'repo=', 'reviewer=', 'update', 'update-branch=', 'no-update', 'user='])
+		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqr:u:l:b:', ['help', 'quiet', 'repo=', 'reviewer=', 'update', 'no-update', 'user=', 'update-branch='])
 	except getopt.GetoptError, e:
 		raise UserWarning("%s\nFor help use --help" % e)
 
@@ -868,12 +868,12 @@ def main():
 				repo_name = a
 			else:
 				repo_name = get_repo_name_for_remote(a)
+		elif o in ('-b', '--update-branch'):
+			update_branch = a
 		elif o in ('-u', '--reviewer'):
 			reviewer_repo_name = a
 		elif o == '--update':
 			fetch_auto_update = True
-		elif o in ('-b', '--update-branch'):
-			update_branch = a
 		elif o == '--no-update':
 			fetch_auto_update = False
 
