@@ -144,6 +144,9 @@ options = {
 	# out.
 	'fetch-auto-update': False,
 
+	# Whether to show pull requests for the entire repo or just the update-branch.
+	'filter-by-update-branch': True,
+
 	# Determines whether to automatically close pull requests after merging
 	# them.
 	'merge-auto-close': True,
@@ -318,7 +321,8 @@ def command_fetch_all(repo_name):
 	print color_text("Fetching all pull requests", 'status')
 	print
 
-	pull_requests = get_pull_requests(repo_name)
+	pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
+
 	for pull_request in pull_requests:
 		fetch_pull_request(pull_request)
 		display_pull_request_minimal(pull_request)
@@ -349,7 +353,7 @@ def command_info(username, detailed = False):
 			print "  %s: %s" % (color_text(base_name, 'display-info-repo-title'), color_text(issue_count, 'display-info-repo-count'))
 
 			if detailed:
-				pull_requests = get_pull_requests(repo_name)
+				pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
 
 				for pull_request in pull_requests:
 					name = (pull_request['user'].get('name') or pull_request['user'].get('login')).encode('utf-8')
@@ -414,10 +418,18 @@ def command_show(repo_name):
 	Queries the github API for open pull requests in the current repo.
 	"""
 
-	print color_text("Loading open pull requests for %s" % repo_name, 'status')
+	update_branch_name = options['update-branch']
+	filter_by_update_branch = options['filter-by-update-branch']
+
+	if not filter_by_update_branch:
+		update_branch_name = "across all branches"
+	else:
+		update_branch_name = "on branch '%s'" % update_branch_name
+
+	print color_text("Loading open pull requests for %s %s" % (repo_name, update_branch_name), 'status')
 	print
 
-	pull_requests = get_pull_requests(repo_name)
+	pull_requests = get_pull_requests(repo_name, filter_by_update_branch)
 
 	if len(pull_requests) == 0:
 		print "No open pull requests found"
@@ -453,7 +465,7 @@ def get_pr_stats(repo_name, pull_request_ID):
 		ret = os.system("git --no-pager diff --shortstat {0}..{1} && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | awk '{{print $3}}' | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name))
 		print
 	else:
-		pull_requests = get_pull_requests(repo_name)
+		pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
 
 		for pull_request in pull_requests:
 			get_pr_stats(repo_name, pull_request)
@@ -730,14 +742,22 @@ def get_pull_request(repo_name, pull_request_ID):
 
 	return data['pull']
 
-def get_pull_requests(repo_name):
+def get_pull_requests(repo_name, filter_by_update_branch=False):
 	"""Returns information retrieved from github about the open pull requests on
 	the repository"""
 
 	url = "http://github.com/api/v2/json/pulls/%s/open" % repo_name
 	data = github_json_request(url)
+	pulls = data['pulls']
 
-	return data['pulls']
+	if filter_by_update_branch:
+		update_branch = options['update-branch']
+
+		pull_requests = [pull for pull in pulls if pull['base']['ref'] == update_branch]
+	else:
+		pull_requests = pulls
+
+	return pull_requests
 
 def get_pull_request_ID(branch_name):
 	"""Returns the pull request number of the branch with the name"""
@@ -798,9 +818,16 @@ def in_work_dir():
 
 def load_options():
 	all_config = os.popen('git config -l').read().strip()
+	git_base_path = os.popen('git rev-parse --show-toplevel').read().strip()
+
+	path_prefix = "%s." % git_base_path
+
+	overrides = {}
 
 	matches = re.findall("^git-pull-request\.([^=]+)=([^\n]*)$", all_config, re.MULTILINE)
+
 	for k in matches:
+		key = k[0]
 		value = k[1]
 
 		if value.lower() in ('f', 'false', 'no'):
@@ -810,12 +837,18 @@ def load_options():
 		elif value.lower() in ('', 'none', 'null', 'nil'):
 			value = None
 
-		options[k[0]] = value
+		if key.find(path_prefix) == -1:
+			options[key] = value
+		else:
+			key = key.replace(path_prefix, '')
+			overrides[key] = value
+
+	options.update(overrides)
 
 def main():
 	# parse command line options
 	try:
-		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqr:u:l:b:', ['help', 'quiet', 'repo=', 'reviewer=', 'update', 'no-update', 'user=', 'update-branch='])
+		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqar:u:l:b:', ['help', 'quiet', 'all', 'repo=', 'reviewer=', 'update', 'no-update', 'user=', 'update-branch='])
 	except getopt.GetoptError, e:
 		raise UserWarning("%s\nFor help use --help" % e)
 
@@ -863,6 +896,8 @@ def main():
 			info_user = a
 		elif o in ('-q', '--quiet'):
 			submitOpenGitHub = False
+		elif o in ('-a', '--all'):
+			options['filter-by-update-branch'] = False
 		elif o in ('-r', '--repo'):
 			if re.search('/', a):
 				repo_name = a
