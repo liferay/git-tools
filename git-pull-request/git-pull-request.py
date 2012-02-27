@@ -279,7 +279,7 @@ def command_alias(alias, githubname, filename):
 
 	github_users_file.close()
 
-def command_fetch(repo_name, pull_request_ID, auto_update = False):
+def command_fetch(repo_name, update_branch_option, pull_request_ID, auto_update = False):
 	"""Fetches a pull request into a local branch"""
 
 	print color_text("Fetching pull request", 'status')
@@ -290,7 +290,7 @@ def command_fetch(repo_name, pull_request_ID, auto_update = False):
 	branch_name = fetch_pull_request(pull_request)
 
 	if auto_update:
-		update_branch(branch_name)
+		update_branch(branch_name, update_branch_option)
 	elif options['fetch-auto-checkout']:
 		ret = os.system('git checkout %s' % branch_name)
 		if ret != 0:
@@ -301,7 +301,7 @@ def command_fetch(repo_name, pull_request_ID, auto_update = False):
 	print
 	display_status()
 
-def command_close(repo_name, comment = None):
+def command_close(repo_name, update_branch_option, comment = None):
 	"""Closes the current pull request on github with the optional comment, then
 	deletes the branch."""
 
@@ -315,8 +315,6 @@ def command_close(repo_name, comment = None):
 	display_pull_request(pull_request)
 
 	close_pull_request(repo_name, pull_request_ID, comment)
-
-	update_branch_option = options['update-branch']
 
 	ret = os.system('git checkout %s' % update_branch_option)
 	if ret != 0:
@@ -332,10 +330,10 @@ def command_close(repo_name, comment = None):
 	print
 	display_status()
 
-def command_continue_update():
-	print color_text("Continuing update from %s" % options['update-branch'], 'status')
+def command_continue_update(update_branch_option):
+	print color_text("Continuing update from %s" % update_branch_option, 'status')
 
-	continue_update()
+	continue_update(update_branch_option)
 	print
 	display_status()
 
@@ -391,14 +389,12 @@ def command_info(username, detailed = False):
 	display_status()
 	return out
 
-def command_merge(repo_name, comment = None):
+def command_merge(repo_name, update_branch_option, comment = None):
 	"""Merges changes from the local pull request branch into the update-branch and deletes
 	the pull request branch"""
 
 	branch_name = get_current_branch_name()
 	pull_request_ID = get_pull_request_ID(branch_name)
-
-	update_branch_option = options['update-branch']
 
 	print color_text("Merging %s into %s" % (branch_name, update_branch_option), 'status')
 	print
@@ -472,7 +468,7 @@ def command_show_alias(alias):
 	except KeyError, keyError:
 		print "The alias % s does not exists in the current mapping file" % alias
 
-def get_pr_stats(repo_name, pull_request_ID):
+def get_pr_stats(repo_name, update_branch_option, pull_request_ID):
 	if pull_request_ID != None:
 		is_int = False
 		try:
@@ -494,16 +490,16 @@ def get_pr_stats(repo_name, pull_request_ID):
 			if  ret != 0:
 				raise UserWarning("Fetch failed")
 
-		merge_base = os.popen('git merge-base %s %s' % (options['update-branch'], branch_name)).read().strip()
+		merge_base = os.popen('git merge-base %s %s' % (update_branch_option, branch_name)).read().strip()
 		ret = os.system("git --no-pager diff --shortstat {0}..{1} && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | awk '{{print $3}}' | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name))
 		print
 	else:
 		pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
 
 		for pull_request in pull_requests:
-			get_pr_stats(repo_name, pull_request)
+			get_pr_stats(repo_name, update_branch_option, pull_request)
 
-def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = None, pull_title = None, submitOpenGitHub = True):
+def command_submit(repo_name, username, reviewer_repo_name = None, update_branch_option = None, pull_body = None, pull_title = None, submitOpenGitHub = True):
 	"""Push the current branch and create a pull request to your github reviewer
 	(or upstream)"""
 
@@ -513,6 +509,9 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 
 	if reviewer_repo_name is None or reviewer_repo_name == '':
 		reviewer_repo_name = get_repo_name_for_remote('upstream')
+
+	if update_branch_option is None or update_branch_option == '':
+		update_branch_option = options['update-branch']
 
 	if reviewer_repo_name is None or reviewer_repo_name == '':
 		raise UserWarning("Could not determine a repo to submit this pull request to")
@@ -542,7 +541,7 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 		# pull_body = raw_input("Comment: ").strip()
 
 	params = {
-		'pull[base]': options['update-branch'],
+		'pull[base]': update_branch_option,
 		'pull[head]': "%s:%s" % (username, branch_name),
 		'pull[title]': pull_title,
 		'pull[body]': pull_body
@@ -565,7 +564,7 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 	if submitOpenGitHub:
 		open_URL(pull_request.get('html_url'))
 
-def command_update(repo_name, target = None):
+def command_update(repo_name, update_branch_option, target = None):
 	if target == None:
 		branch_name = get_current_branch_name()
 	else:
@@ -576,9 +575,9 @@ def command_update(repo_name, target = None):
 		except ValueError:
 			branch_name = target
 
-	print color_text("Updating %s from %s" % (branch_name, options['update-branch']), 'status')
+	print color_text("Updating %s from %s" % (branch_name, update_branch_option), 'status')
 
-	update_branch(branch_name)
+	update_branch(branch_name, update_branch_option)
 	print
 	display_status()
 
@@ -630,9 +629,7 @@ def command_pull(repo_name):
 	print
 	display_status()
 
-def complete_update(branch_name):
-	update_branch_option = options['update-branch']
-
+def complete_update(branch_name, update_branch_option):
 	if in_work_dir():
 		ret = os.system('git checkout %s' % update_branch_option)
 		if ret != 0:
@@ -657,19 +654,19 @@ def complete_update(branch_name):
 	print
 	print color_text("Updating %s from %s complete" % (branch_name, update_branch_option), 'success')
 
-def continue_update():
+def continue_update(update_branch_option):
 	if options['update-method'] == 'merge':
 		ret = os.system('git commit')
 	elif options['update-method'] == 'rebase':
 		ret = os.system('git rebase --continue')
 
 	if ret != 0:
-		raise UserWarning("Updating from %s failed\nResolve conflicts and 'git add' files, then run 'gitpr continue-update'" % options['update-branch'])
+		raise UserWarning("Updating from %s failed\nResolve conflicts and 'git add' files, then run 'gitpr continue-update'" % update_branch_option)
 
 	# The branch name will not be correct until the merge/rebase is complete
 	branch_name = get_current_branch_name()
 
-	complete_update(branch_name)
+	complete_update(branch_name, update_branch_option)
 
 def display_pull_request(pull_request):
 	"""Nicely display_pull_request info about a given pull request"""
@@ -808,9 +805,9 @@ def get_pull_requests(repo_name, filter_by_update_branch=False):
 	pulls = data['pulls']
 
 	if filter_by_update_branch:
-		update_branch = options['update-branch']
+		update_branch_option = options['update-branch']
 
-		pull_requests = [pull for pull in pulls if pull['base']['ref'] == update_branch]
+		pull_requests = [pull for pull in pulls if pull['base']['ref'] == update_branch_option]
 	else:
 		pull_requests = pulls
 
@@ -938,6 +935,8 @@ def main():
 	repo_name = None
 	reviewer_repo_name = None
 
+	update_branch_option = options['update-branch']
+
 	username = os.popen('git config github.user').read().strip()
 	auth_token = os.popen('git config github.token').read().strip()
 
@@ -975,7 +974,7 @@ def main():
 			else:
 				repo_name = get_repo_name_for_remote(a)
 		elif o in ('-b', '--update-branch'):
-			options['update-branch'] = a
+			update_branch_option = a
 		elif o in ('-u', '--reviewer'):
 			reviewer_repo_name = a
 		elif o == '--update':
@@ -1006,13 +1005,13 @@ def main():
 				command_alias(args[1], args[2], github_users_filename)
 		elif args[0] == 'close':
 			if len(args) >= 2:
-				command_close(repo_name, args[1])
+				command_close(repo_name, update_branch_option, args[1])
 			else:
-				command_close(repo_name)
+				command_close(repo_name, update_branch_option)
 		elif args[0] in ('continue-update', 'cu'):
-			command_continue_update()
+			command_continue_update(update_branch_option)
 		elif args[0] == 'fetch':
-			command_fetch(repo_name, args[1], fetch_auto_update)
+			command_fetch(repo_name, update_branch_option, args[1], fetch_auto_update)
 		elif args[0] == 'fetch-all':
 			command_fetch_all(repo_name)
 		elif args[0] == 'help':
@@ -1023,9 +1022,9 @@ def main():
 			command_info(info_user, True)
 		elif args[0] == 'merge':
 			if len(args) >= 2:
-				command_merge(repo_name, args[1])
+				command_merge(repo_name, update_branch_option, args[1])
 			else:
-				command_merge(repo_name)
+				command_merge(repo_name, update_branch_option)
 		elif args[0] == 'open':
 			if len(args) >= 2:
 				command_open(repo_name, args[1])
@@ -1043,12 +1042,12 @@ def main():
 			if len(args) >= 3:
 				pull_title = args[2]
 
-			command_submit(repo_name, username, reviewer_repo_name, pull_body, pull_title, submitOpenGitHub)
+			command_submit(repo_name, username, reviewer_repo_name, update_branch_option, pull_body, pull_title, submitOpenGitHub)
 		elif args[0] == 'update':
 			if len(args) >= 2:
-					command_update(repo_name, args[1])
+					command_update(repo_name, update_branch_option, args[1])
 			else:
-				command_update(repo_name)
+				command_update(repo_name, update_branch_option)
 		elif args[0] == 'update-users':
 			command_update_users(github_users_filename)
 		elif args[0] == 'show-alias':
@@ -1060,9 +1059,9 @@ def main():
 			if len(args) >= 2:
 				pull_request_ID = args[1]
 
-			get_pr_stats(repo_name, pull_request_ID)
+			get_pr_stats(repo_name, update_branch_option, pull_request_ID)
 		else:
-			command_fetch(repo_name, args[0], fetch_auto_update)
+			command_fetch(repo_name, update_branch_option, args[0], fetch_auto_update)
 	else:
 		command_show(repo_name)
 
@@ -1081,7 +1080,7 @@ def post_comment(repo_name, pull_request_ID, comment):
 	params = {'comment': comment}
 	github_json_request(url, params)
 
-def update_branch(branch_name):
+def update_branch(branch_name, update_branch_option):
 	if in_work_dir():
 		raise UserWarning("Cannot perform an update from within the work directory.\nIf you are done fixing conflicts run 'gitpr continue-update' to complete the update.")
 
@@ -1108,8 +1107,6 @@ def update_branch(branch_name):
 		else:
 			raise UserWarning("Could not checkout %s, update not performed" % branch_name)
 
-	update_branch_option = options['update-branch']
-
 	parent_commit = os.popen('git merge-base %s %s' % (update_branch_option, branch_name)).read().strip()
 	head_commit = os.popen('git rev-parse HEAD').read().strip()
 
@@ -1132,7 +1129,7 @@ def update_branch(branch_name):
 			chdir(work_dir)
 		raise UserWarning("Updating %s from %s failed\nResolve conflicts and 'git add' files, then run 'gitpr continue-update'" % (branch_name, update_branch_option))
 
-	complete_update(branch_name)
+	complete_update(branch_name, update_branch_option)
 
 if __name__ == "__main__":
 	try:
