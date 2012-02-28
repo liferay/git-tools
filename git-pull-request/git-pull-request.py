@@ -90,7 +90,7 @@ Commands:
 		changes in the update-branch, using either a rebase or merge.
 
 	update-users
-		Updates the file configured in github.users.filename variable. This file contains all the 
+		Updates the file configured in git-pull-request.users-alias-file variable. This file contains all the
 		github names indexed by the email (without the @ email suffix).
 
 
@@ -273,8 +273,8 @@ def command_alias(alias, githubname, filename):
 		users[alias] = githubname
 	except Exception:
 		raise UserWarning('Error while updating the alias for %s' % alias)
-	
-	github_users_file = open(filename, 'w')	
+
+	github_users_file = open(filename, 'w')
 	json.dump(users, github_users_file)
 
 	github_users_file.close()
@@ -462,11 +462,13 @@ def command_show(repo_name):
 def command_show_alias(alias):
 	""" Shows the username where the alias points to
 	"""
-	try:
-		github_user = users[alias]
-		print "The alias %s points to %s " % (alias, github_user)
-	except KeyError, keyError:
-		print "The alias % s does not exists in the current mapping file" % alias
+
+	user_item = next((user for user in users.iteritems() if user[0] == alias or user[1] == alias), None)
+
+	if user_item:
+		print "The user alias %s points to %s " % user_item
+	else:
+		print "There is no user alias or github name matching %s in the current mapping file" % alias
 
 def get_pr_stats(repo_name, update_branch_option, pull_request_ID):
 	if pull_request_ID != None:
@@ -582,23 +584,27 @@ def command_update(repo_name, update_branch_option, target = None):
 	display_status()
 
 def command_update_users(filename):
-	
-	upstream_forks = github_json_request("http://github.com/api/v2/json/repos/show/%s/network" % get_repo_name_for_remote("upstream"))	
-	
+
+	upstream_forks = github_json_request("http://github.com/api/v2/json/repos/show/%s/network" % get_repo_name_for_remote("upstream"))
+
 	github_users = {}
 
-	for fork in upstream_forks["network"]:		
+	forks = upstream_forks['network']
+
+	if len(forks) > 20:
+		print "There are more than 20 users, this could take a few minutes..."
+
+	for fork in forks:
 		login = fork['owner']
 		github_user_info = github_json_request("https://api.github.com/users/%s" % login, authenticate = False)
+		email = login
 
-		try:
+		if 'email' in github_user_info and github_user_info['email']:
 			email = github_user_info['email'].split("@")[0]
-		except Exception:
-			email = login
 
 		github_users[email] = login
 
-	github_users_file = open(filename, 'w')	
+	github_users_file = open(filename, 'w')
 	json.dump(github_users, github_users_file)
 
 	github_users_file.close()
@@ -847,7 +853,7 @@ def github_json_request(url, params = None, authenticate = True):
 	else:
 		req = urllib2.Request(url)
 
-	if authenticate:	
+	if authenticate:
 		authorize_request(req)
 	print url
 
@@ -902,13 +908,13 @@ def load_options():
 
 def load_users(filename):
 	try:
-		github_users_file = open(filename, 'r')	
+		github_users_file = open(filename, 'r')
 	except IOError:
 		print "File %s could not be found. Using email names will not be available. Run the update_users command to enable this funcionality" % filename
 		return {}
-	
+
 	github_users = json.load(github_users_file)
-	
+
 	github_users_file.close()
 
 	return github_users
@@ -982,14 +988,14 @@ def main():
 		elif o == '--no-update':
 			fetch_auto_update = False
 
-	# manage github usernames	
-	github_users_filename = os.popen('git config github.users.filename').read().strip()	
+	# manage github usernames
+	users_alias_file = os.popen('git config git-pull-request.users-alias-file').read().strip()
 
-	if len(github_users_filename) == 0:
-		github_users_filename = "github.users"
-			
+	if len(users_alias_file) == 0:
+		users_alias_file = "git-pull-request.users"
+
 	if len(args) > 0 and args[0] != "update-users":
-		users = load_users(github_users_filename)
+		users = load_users(users_alias_file)
 
 	# get repo name from git config
 	if repo_name is None or repo_name == '':
@@ -1002,7 +1008,7 @@ def main():
 	if len(args) > 0:
 		if args[0] == 'alias':
 			if len(args) >= 2:
-				command_alias(args[1], args[2], github_users_filename)
+				command_alias(args[1], args[2], users_alias_file)
 		elif args[0] == 'close':
 			if len(args) >= 2:
 				command_close(repo_name, update_branch_option, args[1])
@@ -1049,10 +1055,10 @@ def main():
 			else:
 				command_update(repo_name, update_branch_option)
 		elif args[0] == 'update-users':
-			command_update_users(github_users_filename)
+			command_update_users(users_alias_file)
 		elif args[0] == 'show-alias':
 			if len(args) >= 2:
-				command_show_alias (args[1])
+				command_show_alias(args[1])
 		elif args[0] == 'stats' or args[0] == 'stat':
 			pull_request_ID = None
 

@@ -30,11 +30,11 @@ Based on scripts by Connor McKay<connor.mckay@liferay.com>, Andreas Gohr <andi@s
 	
 		gitpr help
 
-5. If you want to use the alias ability you need to configure your git repo with
+5. If you want to use the "user aliases" functionality you need to configure your git repo with
  		
-		git config github.users.filename PATH_TO_YOUR_FILE (local to the current repo)
+		git config git-pull-request.users-alias-file PATH_TO_YOUR_FILE (local to the current repo)
 		
-		git config --global github.users.filename PATH_TO_YOUR_FILE (global for all the git repos)
+		git config --global git-pull-request.users-alias-file PATH_TO_YOUR_FILE (global for all the git repos)
 	
 	Run the command gitpr update-users. This command will populate the previous file
 	with all the info of the users who has forked your upstream repository
