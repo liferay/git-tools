@@ -855,12 +855,13 @@ def github_json_request(url, params = None, authenticate = True):
 
 	if authenticate:
 		authorize_request(req)
+
 	print url
 
 	try:
 		response = urllib2.urlopen(req)
-	except urllib2.HTTPError, msg:
-		raise UserWarning("Error communicating with github: %s\n%s" % (url, msg))
+	except urllib2.URLError, msg:
+		raise UserWarning("Error communicating with github: \n%s\n%s" % (url, msg))
 
 	data = response.read()
 	if data == '':
