@@ -408,13 +408,13 @@ def command_open(repo_name, pull_request_ID = None):
 
 	open_URL(pull_request.get('html_url'))
 
-def command_show(repo_name):
+def command_show(repo_name, update_branch_option):
 	"""List open pull requests
 
 	Queries the github API for open pull requests in the current repo.
 	"""
 
-	update_branch_name = options['update-branch']
+	update_branch_name = update_branch_option
 	filter_by_update_branch = options['filter-by-update-branch']
 
 	if not filter_by_update_branch:
@@ -976,7 +976,7 @@ def main():
 		else:
 			command_fetch(repo_name, update_branch_option, args[0], fetch_auto_update)
 	else:
-		command_show(repo_name)
+		command_show(repo_name, update_branch_option)
 
 def open_URL(url):
 	if (os.popen('command -v open').read().strip() != ''):
