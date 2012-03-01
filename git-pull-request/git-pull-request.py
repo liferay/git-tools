@@ -1047,6 +1047,12 @@ def update_branch(branch_name):
 
 	complete_update(branch_name)
 
+
+def log(*args):
+	for arg in args:
+		print json.dumps(arg, sort_keys=True, indent=4)
+		print "/---"
+
 if __name__ == "__main__":
 	try:
 		main()
