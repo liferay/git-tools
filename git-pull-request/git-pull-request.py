@@ -914,7 +914,7 @@ def load_users(filename):
 	try:
 		github_users_file = open(filename, 'r')
 	except IOError:
-		print "File %s could not be found. Using email names will not be available. Run the update_users command to enable this funcionality" % filename
+		print "File %s could not be found. Using email names will not be available. Run the update-users command to enable this funcionality" % filename
 		return {}
 
 	github_users = json.load(github_users_file)
@@ -965,13 +965,23 @@ def main():
 	info_user = username
 	submitOpenGitHub = options['submit-open-github']
 
+	# manage github usernames
+	users_alias_file = os.popen('git config git-pull-request.users-alias-file').read().strip()
+
+	if len(users_alias_file) == 0:
+		users_alias_file = "git-pull-request.users"
+
+	if len(args) > 0 and args[0] != "update-users":
+		users = load_users(users_alias_file)
+
+
 	# process options
 	for o, a in opts:
 		if o in ('-h', '--help'):
 			command_help()
 			sys.exit(0)
 		elif o in ('-l', '--user'):
-			info_user = a
+			info_user = lookup_alias(a)
 		elif o in ('-q', '--quiet'):
 			submitOpenGitHub = False
 		elif o in ('-a', '--all'):
@@ -990,21 +1000,15 @@ def main():
 		elif o == '--no-update':
 			fetch_auto_update = False
 
-	# manage github usernames
-	users_alias_file = os.popen('git config git-pull-request.users-alias-file').read().strip()
-
-	if len(users_alias_file) == 0:
-		users_alias_file = "git-pull-request.users"
-
-	if len(args) > 0 and args[0] != "update-users":
-		users = load_users(users_alias_file)
-
 	# get repo name from git config
 	if repo_name is None or repo_name == '':
 		repo_name = get_default_repo_name()
 
 	if reviewer_repo_name is None or reviewer_repo_name == '':
 		reviewer_repo_name = os.popen('git config github.reviewer').read().strip()
+
+	if reviewer_repo_name:
+		reviewer_repo_name = lookup_alias(reviewer_repo_name)
 
 	# process arguments
 	if len(args) > 0:
@@ -1072,6 +1076,14 @@ def main():
 			command_fetch(repo_name, args[0], fetch_auto_update)
 	else:
 		command_show(repo_name)
+
+def lookup_alias(key):
+	user_alias = key
+
+	if users and (key in users) and users[key]:
+		user_alias = users[key]
+
+	return user_alias
 
 def open_URL(url):
 	if (os.popen('command -v open').read().strip() != ''):
