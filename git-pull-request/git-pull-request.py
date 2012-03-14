@@ -1080,8 +1080,11 @@ def main():
 def lookup_alias(key):
 	user_alias = key
 
-	if users and (key in users) and users[key]:
-		user_alias = users[key]
+	try:
+		if users and (key in users) and users[key]:
+			user_alias = users[key]
+	except Exception, e:
+		pass
 
 	return user_alias
 
