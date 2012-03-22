@@ -1,1 +1,262 @@
-/Volumes/Dev/Work/git/natecavanaugh/dotfiles/gitconfig
+[core]
+	quotepath = false
+	autocrlf = input
+[color]
+	ui = auto
+[alias]
+	# @Requires the following scripts (all available in this repo):
+	# git-get-latest-jira-id
+	# get-getm
+	# git-sync-origin
+	# git-of-interest
+	# git-pull-request
+
+	## Committing
+	##--------
+
+	# Commit
+	ci = commit
+	# Commit w/ message
+	cim = commit -m
+	# Amend commit
+	cia = commit --amend
+	# Amend commit w/message
+	ciam = commit --amend -m
+	# Add changed files and then commit w/message
+	cam = commit -a -m
+	# Commit and add files
+	ca = commit -a
+	# These are the same as cam, ca and squish, except it adds new files as well
+	acam = !git add -A && git commit -m
+	aca = !git add -A && git commit
+	asquish = !git add -A && git commit --amend -C HEAD
+	# Adds all changed files into the last commit
+	squish = commit -a --amend -C HEAD
+	# Adds only staged files into the last commit
+	squeeze = commit --amend -C HEAD
+
+	# camm and cimm, acts as cam and cim aliases
+	# but automatically creates a message using the last JIRA ticket it can find (if any)
+	# can take one optional parameter which is the message to use after the 
+	# ticket ID (by default, this is "Source formatting")
+	camm = "!f() { ticketId=$(git get-latest-jira-id $2); git commit -a -m \"$ticketId - ${1:-Source formatting}\"; }; f"
+	cimm = "!f() { ticketId=$(git get-latest-jira-id $2); git commit -m \"$ticketId - ${1:-Source formatting}\"; }; f"
+
+	## Branches
+	##--------
+
+	# Checkout
+	co = checkout
+	# Checkout last branch
+	col = checkout -
+	# Branch
+	br = branch
+	# create a branch by name, or if it exists, checkout the branch
+	cb = "!f() { git checkout -b $1 2> /dev/null && echo Created new branch $1 || `git checkout $1`; }; f"
+	# "Refreshes" the current branch (deletes the local and remote, and recreates it)
+	refresh = "!f() { git co $(git getm) && git db-all $1; git cb $1; }; f"
+	# Move all commits after the passed one to a new branch
+	# eg. git split 5c29ab4 custom-feature
+	split = "!f() { git checkout -b $2 && msg=$(git stash save) && git checkout - && git reset --hard $1 && git checkout $2 && [[ ! $msg =~ ^'No local changes to save'$ ]] && git stash pop; }; f"
+
+	## Merging
+	##--------
+
+	# Merge
+	mg = merge
+	# Merge abort
+	mga = merge --abort
+	# Merge master into current branch
+	mm = !git merge $(git getm)
+
+	## Rebasing
+	##--------
+
+	# Rebase
+	rb = rebase
+	# Abort rebase
+	rba = rebase --abort
+	# Continue rebase
+	rbc = rebase --continue
+	# Skip patch
+	rbs = rebase --skip
+	# Rebase interactively
+	rbi = rebase -i
+	# Rebase on top of master
+	rbm = !git rebase $(git getm)
+	# Rebase on top of master interactively
+	rbim = rebase -i $(git getm)
+
+	## Resetting
+	##--------
+
+	# Reset
+	rs = reset
+	# Reset hard
+	rsh = reset --hard
+	# Reset soft
+	rss = reset --soft
+
+	## Deleting
+	##--------
+
+	# Delete a local branch
+	db = branch -D
+	# Delete a remote branch
+	db-remote = !sh -c 'git push origin :$0'
+	# Delete both the local and remote branches
+	db-all = !sh -c 'git db $0 && git db-remote $0'
+
+	# Delete the current local branch and checkout master
+	dbc = "!f() { local bn=$1; [[ -z $bn ]] && bn=$(git brn); master=$(git getm); [[ $bn == $master ]] && echo Cannot remove "$master" && exit; git co $master && git db $bn; }; f"
+
+	## Pushing
+	##--------
+
+	# Syncs from upstream, then pushes the master branch to origin and upstream
+	push-allm = "!master=$(git getm); git sync-origin $master && git push origin $master && git push upstream $master;"
+	# Syncs from upstream, then pushes the master branch to origin and upstream
+	push-all = "!f() { current_branch=$(git brn); git sync-origin $current_branch && git push origin $current_branch && git push upstream $current_branch; }; f"
+
+	pa = !git push-all
+	pam = !git push-allm
+	pum = push upstream $(git getm)
+	pbo = !git push origin $(git brn)
+
+	pu = pull upstream
+	fu = fetch upstream
+
+	## Syncing
+	##--------
+
+	# Sync master from upstream to origin
+	# This alias will stash current changes, switch to master, sync, then switch back to the original branch and apply the stash
+	som = "!f() { local current_branch=$(git brn); local saved_index=0; local stash_save_result=`git stash save`; [[ $stash_save_result == *\"HEAD is now at\"* ]] && saved_index=1; master=$(git getm); git checkout $master && git sync-origin $master && git checkout $current_branch && ([[ $saved_index == 1 ]]) && git stash pop; }; f;"
+	# Sync current branch with changes from upstream/master to the current branch on origin
+	so = !git sync-origin $(git getm)
+	# Sync current branch from upstream to origin
+	sbo = !git sync-origin $(git brn)
+	# Update current branch from origin
+	ubo = !git pull origin $(git brn)
+
+	## Logging
+	##--------
+
+	# Pretty graph
+	lg = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(cyan)<%an>%Creset' --abbrev-commit --date=relative
+	lgd = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cd) %C(cyan)<%an>%Creset' --abbrev-commit --date=default
+	# lg graph with the names of the files that have changed
+	lgst = !git lg --stat $@
+	# lg graph with the changes between the current branch and master
+	lgm = !git lg $(git getm)..
+	# lg graph with grepping on the log
+	lgg = "!f() { git lg --grep=\"$1\"; }; f"
+	# lg graph with searching the changes
+	lgs = "!f() { git lg -S\"$1\"; }; f"
+	# lg graph of just the latest commit
+	hd = !git --no-pager log --pretty=format:'%Cred%h%Creset - %s %Cgreen(%cr) %C(cyan)<%an>%Creset' --abbrev-commit --date=relative -1
+	head = !git log -n1
+	tip = !git log --format=format:%h | head -1
+	tipl = !git log --format=format:%H | head -1
+
+	## Stashing
+	##--------
+
+	# Apply stash (newest by default)
+	sa = "!f() { local stash_rev=stash@{${1:-0}}; git stash apply $stash_rev;  }; f"
+	# Pop stash (newest by default)
+	sp = "!f() { local stash_rev=stash@{${1:-0}}; git stash pop $stash_rev;  }; f"
+	# Save stash (includes untracked files)
+	ss = !git add . && git stash save
+	# List all entries in the stash
+	sl = stash list
+
+	## Diffing
+	##--------
+
+	dt = difftool
+	dtc = difftool --cached
+
+	# List the filenames and diff stats for a commit/treeish
+	dl = "!f() { ref_spec=$(git get-custom-refspec $1); git diff --stat $ref_spec; }; f"
+	# Show the patch for a commit/treeish
+	delta = "!f() { ref_spec=$(git get-custom-refspec $1); git diff $ref_spec; }; f"
+	# Show *just* the file names that have been changed for a commit/treeish
+	ldl = "!f() { local ref_spec=$(git get-custom-refspec $1); git diff --pretty='format:' --name-only $ref_spec; }; f"
+
+	## Opening files
+	##--------
+
+	# open batch of files
+	bopen = "!f() { local ref_spec=$(git get-custom-refspec $1); editor=`git config --get user.editor`;files=`git diff --pretty=format: --name-only $ref_spec`;useopen=`command -v open`; usecygwin=`command -v cygstart`; [[ -n $useopen ]] && open -a \"$editor\" $files && exit $?; [[ -n $usecygwin ]] && editor=$(cygpath -d $editor); for i in $files; do echo opening $i; $usecygwin $editor $i; done }; f"
+	# open each file individually
+	open = "!f() { local ref_spec=$(git get-custom-refspec $1); editor=`git config --get user.editor`;files=`git diff --pretty=format: --name-only $ref_spec`;useopen=`command -v open`; usecygwin=`command -v cygstart`; [[ -n $useopen ]] && for i in $files; do echo opening $i; $useopen -a \"$editor\" $i; done && exit $?; [[ -n $usecygwin ]] && editor=$(cygpath -d $editor); for i in $files; do echo opening $i; $usecygwin $editor $i; done }; f"
+	# Open all files that are different from master
+	openm = !git open $(git getm)..
+
+	## Submodules
+	##--------
+
+	# Update submodules
+	subu = submodule update
+	# Update submodules and initialize them
+	subi = submodule update --init
+
+	## Submitting Pull Requests
+	##--------
+
+	# Pull request
+	pr = pull-request
+	# Show pull requests w/stats
+	prs = pull-request stat
+	# Submit pull request and close the current one
+	prcs = !git pr submit -q && git pr close
+	# Sets the update branch based on the current repo directory name (so liferay-portal-ee-6.1.x will have an update branch of ee-6.1.x)
+	set-pr-branch-config = "!f(){ git config "git-pull-request.$(git rev-parse --show-toplevel).$1" "$2"; }; f"
+	set-update-branch = "!f(){ git set-pr-branch-config "update-branch" "${1:-$(git getm)}"; }; f"
+	set-work-dir = "!f(){ git set-pr-branch-config "work-dir" "$1"; }; f"
+
+	## Misc
+	##--------
+
+	# Checkout master
+	m = !git co $(git getm)
+
+	# Shortcut for help
+	h = help
+
+	# Cherry-pick
+	cp = cherry-pick
+
+	# Get the current branch name
+	brn = "!git branch $* | grep '^*' | sed 's/^* //'"
+
+	# Get the last mentioned JIRA ticket id from the commit log
+	get-latest-jira-id = "!f() { git log $1 --oneline | grep -Eo '([A-Z]{3,}-)([0-9]+)' -m 1; }; f"
+
+	# Open the url to the latest JIRA ticket referenced in the log
+	jira = "!f() { ticketId=$(git get-latest-jira-id $2); open http://issues.liferay.com/browse/$ticketId;  }; f"
+
+	# Get a range based commit-ish based on the passed sha. Uses HEAD by default, but if a sha is passed, it creates a range
+	# that refers to one previous. If you pass a range, it will leave it untouched so that you can customize the range yourself.
+	# Used in many aliases
+	# eg. git get-custom-refspec					# prints HEAD^..HEAD
+	#     git get-custom-refspec ^					# prints HEAD^..
+	#     git get-custom-refspec 81c35e1			# prints 81c35e1^..81c35e1
+	#     git get-custom-refspec 5250022..master	# prints 5250022..master
+	get-custom-refspec = "!f() { to_rev=${1:-HEAD}; [[ $to_rev == ^ ]] && to_rev=HEAD^..; old_head=${to_rev}^; new_head=$to_rev; if [[ $to_rev == *..* ]]; then old_head=${to_rev%%..*}; new_head=${to_rev#*..*}; fi; ref_spec=$old_head..$new_head; echo $ref_spec; }; f"
+
+	# Rank contributors by number of commits
+	stats = shortlog -s -n
+
+	# Same as add, but uses the verbose option since git add doesn't inform you of what exactly you just added
+	aa = add -v
+
+	# List ignored files
+	ls-ignored = ls-files --exclude-standard --ignored --others
+
+	# Reset last commit
+	pop = reset HEAD^
+
+	# Remove untracked files and directories
+	cln = clean -f -d
