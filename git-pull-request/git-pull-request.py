@@ -938,7 +938,7 @@ def main():
 	load_options()
 
 	global auth_string, users
-	users = {}
+	# global users = {}
 	global _work_dir
 
 	_work_dir = None
