@@ -937,8 +937,8 @@ def main():
 	# load git options
 	load_options()
 
-	global auth_string, users
-	# global users = {}
+	global auth_string
+	global users
 	global _work_dir
 
 	_work_dir = None
