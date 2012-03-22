@@ -663,7 +663,7 @@ def complete_update(branch_name):
 	print
 	print color_text("Updating %s from %s complete" % (branch_name, update_branch_option), 'success')
 
-def continue_update(update_branch_option):
+def continue_update():
 	if options['update-method'] == 'merge':
 		ret = os.system('git commit')
 	elif options['update-method'] == 'rebase':
@@ -1080,8 +1080,11 @@ def main():
 def lookup_alias(key):
 	user_alias = key
 
-	if users and (key in users) and users[key]:
-		user_alias = users[key]
+	try:
+		if users and (key in users) and users[key]:
+			user_alias = users[key]
+	except Exception, e:
+		pass
 
 	return user_alias
 
