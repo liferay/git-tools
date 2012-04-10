@@ -1,0 +1,27 @@
+#!/bin/bash
+
+old_head=$(git rev-parse --short head | tr -d '\n')
+
+msg=$(git stash save)
+
+[[ $msg =~ ^'No local changes to save'$ ]] && stashed=0 || stashed=1
+
+git fetch upstream && git merge upstream/$1 --ff-only && git push origin $1
+
+new_head=$(git rev-parse --short head | tr -d '\n')
+
+[ $old_head != $new_head ] && updated=1 || updated=0
+
+if [[ $stashed == 1 ]]; then
+	git stash pop > /dev/null
+fi
+
+if [[ $updated == 1 ]]; then
+	echo "Updated from $old_head to $new_head ($old_head..$new_head)"
+	echo "---------------------------------------------------"
+
+	git of-interest $old_head..$new_head
+
+	echo "---------------------------------------------------"
+	echo "Updated from $old_head to $new_head ($old_head..$new_head)"
+fi

@@ -1,0 +1,30 @@
+#!/bin/bash
+
+file_types=${2:-"*.js *.css *.jsp* *.vm *.ftl"}
+
+ignore_folder="portal-web/test/"
+
+to_rev=${1:-"HEAD"};
+old_head=${to_rev}^;
+new_head=$to_rev;
+
+if [[ $to_rev == *..* ]]; then
+	old_head=${to_rev%%..*};
+	new_head=${to_rev#*..*};
+fi
+
+ref_spec=$old_head..$new_head;
+
+entries=$(git log -M -C --name-only --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(cyan)<%an>%Creset' --abbrev-commit --date=relative $ref_spec -- $file_types | sed 's/^/  /')
+
+totalstat=$(git diff --numstat --pretty='%H' --no-renames $ref_spec | grep -v "\b$ignore_folder" | xargs -0n1 echo -n | awk '{{print $3}}' | sed -e 's/^.*\.\(.*\)$/\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//')
+
+if [[ -z $entries ]]; then
+	echo "There are no changes in ${file_types// /, } across $ref_spec"
+else
+	echo "Changes in these file types: ${file_types// /, } that you might be interested in:"
+
+	echo "$entries"
+	echo "---"
+	echo "$totalstat"
+fi
