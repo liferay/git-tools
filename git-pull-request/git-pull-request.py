@@ -937,7 +937,8 @@ def main():
 	# load git options
 	load_options()
 
-	global auth_string, users
+	global auth_string
+	global users
 	global _work_dir
 
 	_work_dir = None
@@ -973,7 +974,6 @@ def main():
 
 	if len(args) > 0 and args[0] != "update-users":
 		users = load_users(users_alias_file)
-
 
 	# process options
 	for o, a in opts:
