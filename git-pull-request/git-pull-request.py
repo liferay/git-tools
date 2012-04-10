@@ -380,7 +380,8 @@ def command_info(username, detailed = False):
 				pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
 
 				for pull_request in pull_requests:
-					name = (pull_request['user'].get('name') or pull_request['user'].get('login')).encode('utf-8')
+					name = (pull_request['user'].get('name') or pull_request['user'].get('login'))
+
 					print "    %s by %s" % (color_text("REQ %s" % pull_request.get('number'), 'display-title-number', True), color_text(name, 'display-title-user'))
 
 			total += issue_count
