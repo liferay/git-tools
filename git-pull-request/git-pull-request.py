@@ -1060,7 +1060,7 @@ def main():
 			if len(args) >= 2:
 					command_update(repo_name, args[1])
 			else:
-				command_update(repo_name, update_branch_option)
+				command_update(repo_name)
 		elif args[0] == 'update-users':
 			command_update_users(users_alias_file)
 		elif args[0] == 'show-alias':
