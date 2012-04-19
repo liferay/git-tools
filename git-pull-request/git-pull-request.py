@@ -114,6 +114,7 @@ import re
 import sys
 import urllib
 import urllib2
+import getpass
 # import isodate
 # from datetime import date
 
@@ -182,12 +183,16 @@ options = {
 	'work-dir': None
 }
 
-#print json.dumps(data,sort_keys=True, indent=4)
+URL_BASE = "https://api.github.com/%s"
+SCRIPT_NOTE = 'GitPullRequest Script (by Liferay)'
 
-def authorize_request(req):
+def authorize_request(req, token=None, auth_type="token"):
 	"""Add the Authorize header to the request"""
 
-	req.add_header("Authorization", "Basic %s" % auth_string)
+	if token == None:
+		token = auth_token
+
+	req.add_header("Authorization", "%s %s" % (auth_type, token))
 
 def build_branch_name(pull_request):
 	"""Returns the local branch name that a pull request should be fetched into"""
@@ -239,8 +244,13 @@ def close_pull_request(repo_name, pull_request_ID, comment = None):
 	if comment is not None and comment != '':
 		post_comment(repo_name, pull_request_ID, comment)
 
-	url = "http://github.com/api/v2/json/issues/close/%s/%s" % (repo_name, pull_request_ID)
-	github_json_request(url)
+	url = get_api_url("repos/%s/pulls/%s" % (repo_name, pull_request_ID))
+
+	params = {
+		'state': 'closed'
+	}
+
+	github_json_request(url, params)
 
 def color_text(text, token, bold = False):
 	"""Return the given text in ANSI colors"""
@@ -361,10 +371,11 @@ def command_info(username, detailed = False):
 	print color_text("Loading information on repositories for %s" % username, 'status')
 	print
 
-	url = "http://github.com/api/v2/json/repos/show/%s" % username
-	data = github_json_request(url)
-	repos = data['repositories']
-	# print json.dumps(data,sort_keys=True, indent=4)
+	# Change URL depending on if info user is passed in
+	url = get_api_url("users/%s/repos" % username)
+
+	repos = github_json_request(url)
+
 	total = 0
 
 	for pull_request_info in repos:
@@ -372,7 +383,7 @@ def command_info(username, detailed = False):
 
 		if issue_count > 0:
 			base_name = pull_request_info['name']
-			repo_name = "%s/%s" % (pull_request_info['owner'], base_name)
+			repo_name = "%s/%s" % (pull_request_info['owner']['login'], base_name)
 
 			print "  %s: %s" % (color_text(base_name, 'display-info-repo-title'), color_text(issue_count, 'display-info-repo-count'))
 
@@ -381,7 +392,6 @@ def command_info(username, detailed = False):
 
 				for pull_request in pull_requests:
 					name = (pull_request['user'].get('name') or pull_request['user'].get('login'))
-
 					print "    %s by %s" % (color_text("REQ %s" % pull_request.get('number'), 'display-title-number', True), color_text(name, 'display-title-user'))
 
 			total += issue_count
@@ -486,19 +496,43 @@ def get_pr_stats(repo_name, pull_request_ID):
 
 		display_pull_request_minimal(pull_request)
 
-		branch_name = build_branch_name(pull_request)
-		ret = os.system('git show-ref --verify -q refs/heads/%s' % branch_name)
+		# Github API v3 doesn't support getting branch names from /pulls (yet)
+		# branch_name = build_branch_name(pull_request)
+		# ret = os.system('git show-ref --verify -q refs/heads/%s' % branch_name)
 
-		if ret != 0:
-			branch_name = fetch_pull_request(pull_request)
+		url = get_api_url("repos/%s/pulls/%s/files" % (repo_name, pull_request['number']))
 
-			ret = os.system('git show-ref --verify -q refs/heads/%s' % branch_name)
+		files = github_json_request(url)
 
-			if  ret != 0:
-				raise UserWarning("Fetch failed")
+		if files:
+			types = {}
+			changed = len(files)
+			deletions = 0
+			additions = 0
 
-		merge_base = os.popen('git merge-base %s %s' % (options['update-branch'], branch_name)).read().strip()
-		ret = os.system("git --no-pager diff --shortstat {0}..{1} && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | awk '{{print $3}}' | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name))
+			for f in files:
+				fileName, fileExtension = os.path.splitext(f['filename'])
+
+				if not (fileExtension in types):
+					types[fileExtension] = 0
+
+				types[fileExtension] += 1
+
+				deletions += f['deletions']
+				additions += f['additions']
+
+			print '%s files changed, %s insertions (+), %s deletions (-)' % (changed, additions, deletions)
+			out = []
+
+			for ext in types:
+				out.append('%s %s' % (types[ext], ext))
+
+			print ', '.join(out)
+
+			print
+		else:
+			raise UserWarning("Fetch failed")
+
 		print
 	else:
 		pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
@@ -530,32 +564,24 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 	if ret != 0:
 		raise UserWarning("Could not push this branch to your origin")
 
-	url = "http://github.com/api/v2/json/pulls/%s" % reviewer_repo_name
-
-	# pull[base] - A String of the branch or commit SHA that you want your changes to be pulled to.
-	# pull[head] - A String of the branch or commit SHA of your changes. Typically this will be a branch. If the branch is in a fork of the original repository, specify the username first: "my-user:some-branch".
-	# pull[title] - The String title of the Pull Request (and the related Issue).
-	# pull[body] - The String body of the Pull Request.
+	url = get_api_url("repos/%s/pulls" % reviewer_repo_name)
 
 	if pull_title == None or pull_title == '':
 		pull_title = build_pull_request_title(branch_name)
 
 	if pull_body == None:
 		pull_body = ''
-		# pull_body = raw_input("Comment: ").strip()
 
 	params = {
-		'pull[base]': options['update-branch'],
-		'pull[head]': "%s:%s" % (username, branch_name),
-		'pull[title]': pull_title,
-		'pull[body]': pull_body
+		'base': options['update-branch'],
+		'head': "%s:%s" % (username, branch_name),
+		'title': pull_title,
+		'body': pull_body
 	}
 
 	print color_text("Sending pull request to %s" % reviewer_repo_name, 'status')
 
-	data = github_json_request(url, params)
-
-	pull_request = data['pull']
+	pull_request = github_json_request(url, params)
 
 	print
 	display_pull_request(pull_request)
@@ -586,8 +612,9 @@ def command_update(repo_name, target = None):
 	display_status()
 
 def command_update_users(filename):
+	url = get_api_url("issues/comment/%s/%s" % ("repos/show/%s/network" % get_repo_name_for_remote("upstream")))
 
-	upstream_forks = github_json_request("http://github.com/api/v2/json/repos/show/%s/network" % get_repo_name_for_remote("upstream"))
+	upstream_forks = github_json_request(url)
 
 	github_users = {}
 
@@ -684,7 +711,6 @@ def display_pull_request(pull_request):
 	display_pull_request_minimal(pull_request)
 	print "	%s" % color_text(pull_request.get('html_url'), 'display-title-url')
 
-	# print json.dumps(pull_request,sort_keys=True, indent=4)
 	if pull_request.get('body').strip():
 		print fill(pull_request.get('body'), initial_indent="	", subsequent_indent="	", width=80)
 
@@ -715,9 +741,6 @@ def fetch_pull_request(pull_request):
 	repo_url = get_repo_url(pull_request)
 
 	remote_branch_name = pull_request['head']['ref']
-
-
-	# print json.dumps(pull_request,sort_keys=True, indent=4)
 
 	ret = os.system('git fetch %s %s:%s' % (repo_url, remote_branch_name, branch_name))
 
@@ -801,23 +824,24 @@ def get_work_dir():
 def get_pull_request(repo_name, pull_request_ID):
 	"""Returns information retrieved from github about the pull request"""
 
-	url = "http://github.com/api/v2/json/pulls/%s/%s" % (repo_name, pull_request_ID)
+	url = get_api_url("repos/%s/pulls/%s" % (repo_name, pull_request_ID))
+
 	data = github_json_request(url)
 
-	return data['pull']
+	return data
 
 def get_pull_requests(repo_name, filter_by_update_branch=False):
 	"""Returns information retrieved from github about the open pull requests on
 	the repository"""
 
-	url = "http://github.com/api/v2/json/pulls/%s/open" % repo_name
-	data = github_json_request(url)
-	pulls = data['pulls']
+	url = get_api_url("repos/%s/pulls" % repo_name)
+
+	pulls = github_json_request(url)
 
 	if filter_by_update_branch:
 		update_branch = options['update-branch']
 
-		pull_requests = [pull for pull in pulls if pull['base']['ref'] == update_branch]
+		pull_requests = pulls
 	else:
 		pull_requests = pulls
 
@@ -834,6 +858,7 @@ def get_repo_name_for_remote(remote_name):
 	"""Returns the repository name for the remote with the name"""
 
 	remotes = os.popen('git remote -v').read()
+
 	m = re.search("^%s[^\n]+?github\.com[^\n]*?[:/]([^\n]+?)\.git" % remote_name, remotes, re.MULTILINE)
 
 	if m is not None and m.group(1) != '':
@@ -842,22 +867,35 @@ def get_repo_name_for_remote(remote_name):
 def get_repo_url(pull_request):
 	"""Returns the git URL of the repository the pull request originated from"""
 
-	repo_url = pull_request['head']['repository']['url'].replace('https', 'git')
-	private_repo = pull_request['head']['repository']['private']
+	repo_url = pull_request['head']['repo']['html_url'].replace('https', 'git')
+	private_repo = pull_request['head']['repo']['private']
 
 	if private_repo:
-		repo_url = repo_url.replace('git://github.com/', 'git@github.com:')
+		repo_url = pull_request['head']['repo']['ssh_url']
 
 	return repo_url
 
-def github_json_request(url, params = None, authenticate = True):
+def get_api_url(command):
+	return URL_BASE % command
+
+def github_request(url, params = None, authenticate = True):
 	if params is not None:
-		data = urllib.urlencode(params)
-		req = urllib2.Request(url, data)
+		encode_data = params
+
+		if not isinstance(params, str):
+			encode_data = json.dumps(params)
+
+		req = urllib2.Request(url, encode_data)
 	else:
 		req = urllib2.Request(url)
 
-	if authenticate:
+	if authenticate == 'basic':
+		passwd = getpass.getpass("Github password: ").strip()
+
+		auth_string = base64.encodestring('%s:%s' % (auth_username, passwd)).strip()
+
+		authorize_request(req, auth_string, "Basic")
+	elif authenticate == True:
 		authorize_request(req)
 
 	print url
@@ -865,14 +903,23 @@ def github_json_request(url, params = None, authenticate = True):
 	try:
 		response = urllib2.urlopen(req)
 	except urllib2.URLError, msg:
+		if authenticate and msg.code == 401 and auth_token:
+			print ""
+			print color_text('Could not authorize you to connect with Github. Try running "git config --global --unset github.oauth-token" and running your command again to reauthenticate.', 'error')
+			print ""
+
 		raise UserWarning("Error communicating with github: \n%s\n%s" % (url, msg))
 
 	data = response.read()
+
 	if data == '':
 		raise UserWarning("Invalid response from github")
 
-	data = json.loads(data)
-	# print json.dumps(data,sort_keys=True, indent=4)
+	return data
+
+def github_json_request(url, params = None, authenticate = True):
+	data = json.loads(github_request(url, params, authenticate))
+
 	return data
 
 def in_work_dir():
@@ -927,7 +974,7 @@ def load_users(filename):
 def main():
 	# parse command line options
 	try:
-		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqar:u:l:b:', ['help', 'quiet', 'all', 'repo=', 'reviewer=', 'update', 'no-update', 'user=', 'update-branch='])
+		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqar:u:l:b:', ['help', 'quiet', 'all', 'repo=', 'reviewer=', 'update', 'no-update', 'user=', 'update-branch=', 'authenticate'])
 	except getopt.GetoptError, e:
 		raise UserWarning("%s\nFor help use --help" % e)
 
@@ -938,9 +985,9 @@ def main():
 	# load git options
 	load_options()
 
-	global auth_string
 	global users
 	global _work_dir
+	global auth_username, auth_token
 
 	_work_dir = None
 
@@ -948,19 +995,8 @@ def main():
 	reviewer_repo_name = None
 
 	username = os.popen('git config github.user').read().strip()
-	auth_token = os.popen('git config github.token').read().strip()
 
-	if len(username) == 0:
-		username = raw_input("Github username: ").strip()
-		os.system("git config --global github.user %s" % username)
-
-	if len(auth_token) == 0:
-		print "Please go to https://github.com/account/admin to find your API token"
-		auth_token = raw_input("Github API token: ").strip()
-		os.system("git config --global github.token %s" % auth_token)
-
-	auth_user = "%s/token" % username
-	auth_string = base64.encodestring('%s:%s' % (auth_user, auth_token)).replace('\n', '')
+	auth_token = os.popen('git config github.oauth-token').read().strip()
 
 	fetch_auto_update = options['fetch-auto-update']
 
@@ -1000,6 +1036,40 @@ def main():
 			fetch_auto_update = True
 		elif o == '--no-update':
 			fetch_auto_update = False
+		elif o == '--authenticate':
+			username = ''
+			auth_token = ''
+
+	if len(username) == 0:
+		username = raw_input("Github username: ").strip()
+		os.system("git config --global github.user %s" % username)
+
+	auth_username = username
+
+	if len(auth_token) == 0:
+		# Get a list of the current authorized apps and check if we already have a token
+		current_oauth_list = github_json_request('https://api.github.com/authorizations', None, 'basic')
+		oauth_token = None
+
+		for cur in current_oauth_list:
+			if cur['note'] == SCRIPT_NOTE:
+				oauth_token = cur['token']
+
+		# If we don't have a token, let's create one
+		if not oauth_token:
+			oauth_data = github_json_request(
+				'https://api.github.com/authorizations',
+				'{"scopes": ["repo"],"note": "%s"}' % SCRIPT_NOTE,
+				'basic'
+			)
+
+			oauth_token = oauth_data['token']
+
+		if oauth_token:
+			auth_token = oauth_token
+			os.system("git config --global github.oauth-token %s" % oauth_token)
+		else:
+			raise UserWarning('Could not authenticate you with Github')
 
 	# get repo name from git config
 	if repo_name is None or repo_name == '':
@@ -1100,8 +1170,9 @@ def open_URL(url):
 		os.system('cygstart "%s"' % url)
 
 def post_comment(repo_name, pull_request_ID, comment):
-	url = "http://github.com/api/v2/json/issues/comment/%s/%s" % (repo_name, pull_request_ID)
-	params = {'comment': comment}
+	url = get_api_url("repos/%s/issues/%s/comments" % (repo_name, pull_request_ID))
+	params = {'body': comment}
+
 	github_json_request(url, params)
 
 def update_branch(branch_name):
