@@ -1021,7 +1021,7 @@ def main():
 	if len(users_alias_file) == 0:
 		users_alias_file = "git-pull-request.users"
 
-	if len(args) > 0 and args[0] != "update-users":
+	if len(args) == 0 or args[0] != "update-users":
 		users = load_users(users_alias_file)
 
 	# process options
@@ -1042,7 +1042,7 @@ def main():
 				repo_name = get_repo_name_for_remote(a)
 		elif o in ('-b', '--update-branch'):
 			options['update-branch'] = a
-		elif o in ('-u', '--reviewer'):
+		elif o in ('-u', '--user', '--reviewer'):
 			reviewer_repo_name = a
 		elif o == '--update':
 			fetch_auto_update = True
@@ -1087,13 +1087,17 @@ def main():
 	if repo_name is None or repo_name == '':
 		repo_name = get_default_repo_name()
 
-	if reviewer_repo_name is None or reviewer_repo_name == '':
+	if (reviewer_repo_name is None or reviewer_repo_name == '') and (len(args) > 0 and args[0] == "submit"):
 		reviewer_repo_name = os.popen('git config github.reviewer').read().strip()
 
 	if reviewer_repo_name:
 		reviewer_repo_name = lookup_alias(reviewer_repo_name)
 
+		if len(args) == 0 or args[0] != "submit":
+			repo_name = reviewer_repo_name + '/' + repo_name.split('/')[1]
+
 	USERNAME = username
+
 	# process arguments
 	if len(args) > 0:
 		if args[0] == 'alias':
