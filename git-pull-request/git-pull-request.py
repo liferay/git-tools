@@ -372,7 +372,13 @@ def command_info(username, detailed = False):
 	print
 
 	# Change URL depending on if info user is passed in
-	url = get_api_url("users/%s/repos" % username)
+
+	if username == USERNAME:
+		url = "user/repos"
+	else:
+		url = "users/%s/repos" % username
+
+	url = get_api_url(url)
 
 	repos = github_json_request(url)
 
@@ -991,7 +997,7 @@ def main():
 	# load git options
 	load_options()
 
-	global users
+	global users, USERNAME
 	global _work_dir
 	global auth_username, auth_token
 
@@ -1087,6 +1093,7 @@ def main():
 	if reviewer_repo_name:
 		reviewer_repo_name = lookup_alias(reviewer_repo_name)
 
+	USERNAME = username
 	# process arguments
 	if len(args) > 0:
 		if args[0] == 'alias':
