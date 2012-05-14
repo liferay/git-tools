@@ -373,7 +373,7 @@ def command_info(username, detailed = False):
 
 	# Change URL depending on if info user is passed in
 
-	if username == USERNAME:
+	if username == DEFAULT_USERNAME:
 		url = "user/repos"
 	else:
 		url = "users/%s/repos" % username
@@ -990,14 +990,20 @@ def main():
 	except getopt.GetoptError, e:
 		raise UserWarning("%s\nFor help use --help" % e)
 
-	if len(args) > 0 and args[0] == 'help':
+	arg_length = len(args)
+	command = "show"
+
+	if arg_length > 0:
+		command = args[0]
+
+	if command == 'help':
 		command_help()
 		sys.exit(0)
 
 	# load git options
 	load_options()
 
-	global users, USERNAME
+	global users, DEFAULT_USERNAME
 	global _work_dir
 	global auth_username, auth_token
 
@@ -1021,7 +1027,7 @@ def main():
 	if len(users_alias_file) == 0:
 		users_alias_file = "git-pull-request.users"
 
-	if len(args) == 0 or args[0] != "update-users":
+	if command != "update-users":
 		users = load_users(users_alias_file)
 
 	# process options
@@ -1029,8 +1035,6 @@ def main():
 		if o in ('-h', '--help'):
 			command_help()
 			sys.exit(0)
-		elif o in ('-l', '--user'):
-			info_user = lookup_alias(a)
 		elif o in ('-q', '--quiet'):
 			submitOpenGitHub = False
 		elif o in ('-a', '--all'):
@@ -1044,6 +1048,7 @@ def main():
 			options['update-branch'] = a
 		elif o in ('-u', '--user', '--reviewer'):
 			reviewer_repo_name = a
+			info_user = lookup_alias(a)
 		elif o == '--update':
 			fetch_auto_update = True
 		elif o == '--no-update':
@@ -1087,83 +1092,83 @@ def main():
 	if repo_name is None or repo_name == '':
 		repo_name = get_default_repo_name()
 
-	if (reviewer_repo_name is None or reviewer_repo_name == '') and (len(args) > 0 and args[0] == "submit"):
+	if (not reviewer_repo_name) and (command == 'submit'):
 		reviewer_repo_name = os.popen('git config github.reviewer').read().strip()
 
 	if reviewer_repo_name:
 		reviewer_repo_name = lookup_alias(reviewer_repo_name)
 
-		if len(args) == 0 or args[0] != "submit":
+		if command != "submit":
 			repo_name = reviewer_repo_name + '/' + repo_name.split('/')[1]
 
-	USERNAME = username
+	DEFAULT_USERNAME = username
 
 	# process arguments
-	if len(args) > 0:
-		if args[0] == 'alias':
-			if len(args) >= 2:
+	if command == 'show':
+		command_show(repo_name)
+	elif arg_length > 0:
+		if command == 'alias':
+			if arg_length >= 2:
 				command_alias(args[1], args[2], users_alias_file)
-		elif args[0] == 'close':
-			if len(args) >= 2:
+		elif command == 'close':
+			if arg_length >= 2:
 				command_close(repo_name, args[1])
 			else:
 				command_close(repo_name)
-		elif args[0] in ('continue-update', 'cu'):
+		elif command in ('continue-update', 'cu'):
 			command_continue_update()
-		elif args[0] == 'fetch':
+		elif command == 'fetch':
 			command_fetch(repo_name, args[1], fetch_auto_update)
-		elif args[0] == 'fetch-all':
+		elif command == 'fetch-all':
 			command_fetch_all(repo_name)
-		elif args[0] == 'help':
+		elif command == 'help':
 			command_help()
-		elif args[0] == 'info':
+		elif command == 'info':
 			command_info(info_user)
-		elif args[0] == 'info-detailed':
+		elif command == 'info-detailed':
 			command_info(info_user, True)
-		elif args[0] == 'merge':
-			if len(args) >= 2:
+		elif command == 'merge':
+			if arg_length >= 2:
 				command_merge(repo_name, args[1])
 			else:
 				command_merge(repo_name)
-		elif args[0] == 'open':
-			if len(args) >= 2:
+		elif command == 'open':
+			if arg_length >= 2:
 				command_open(repo_name, args[1])
 			else:
 				command_open(repo_name)
-		elif args[0] == 'pull':
+		elif command == 'pull':
 			command_pull(repo_name)
-		elif args[0] == 'submit':
+		elif command == 'submit':
 			pull_body = None
 			pull_title = None
 
-			if len(args) >= 2:
+			if arg_length >= 2:
 				pull_body = args[1]
 
-			if len(args) >= 3:
+			if arg_length >= 3:
 				pull_title = args[2]
 
 			command_submit(repo_name, username, reviewer_repo_name, pull_body, pull_title, submitOpenGitHub)
-		elif args[0] == 'update':
-			if len(args) >= 2:
+		elif command == 'update':
+			if arg_length >= 2:
 					command_update(repo_name, args[1])
 			else:
-				command_update(repo_name, update_branch_option)
-		elif args[0] == 'update-users':
+				command_update(repo_name, options['update-branch'])
+		elif command == 'update-users':
 			command_update_users(users_alias_file)
-		elif args[0] == 'show-alias':
-			if len(args) >= 2:
+		elif command == 'show-alias':
+			if arg_length >= 2:
 				command_show_alias(args[1])
-		elif args[0] == 'stats' or args[0] == 'stat':
+		elif command == 'stats' or args[0] == 'stat':
 			pull_request_ID = None
 
-			if len(args) >= 2:
+			if arg_length >= 2:
 				pull_request_ID = args[1]
 
 			get_pr_stats(repo_name, pull_request_ID)
 		else:
 			command_fetch(repo_name, args[0], fetch_auto_update)
-	else:
-		command_show(repo_name)
 
 def lookup_alias(key):
 	user_alias = key
