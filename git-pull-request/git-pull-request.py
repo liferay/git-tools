@@ -491,9 +491,9 @@ def command_show_alias(alias):
 	else:
 		print "There is no user alias or github name matching %s in the current mapping file" % alias
 
+
 def get_pr_stats(repo_name, pull_request_ID):
 	if pull_request_ID != None:
-		is_int = False
 		try:
 			pull_request_ID = int(pull_request_ID)
 			pull_request = get_pull_request(repo_name, pull_request_ID)
@@ -502,49 +502,82 @@ def get_pr_stats(repo_name, pull_request_ID):
 
 		display_pull_request_minimal(pull_request)
 
-		# Github API v3 doesn't support getting branch names from /pulls (yet)
-		# branch_name = build_branch_name(pull_request)
-		# ret = os.system('git show-ref --verify -q refs/heads/%s' % branch_name)
+		branch_name = build_branch_name(pull_request)
+		ret = os.system('git show-ref --verify -q refs/heads/%s' % branch_name)
 
-		url = get_api_url("repos/%s/pulls/%s/files" % (repo_name, pull_request['number']))
+		if ret != 0:
+			branch_name = fetch_pull_request(pull_request)
 
-		files = github_json_request(url)
+			ret = os.system('git show-ref --verify -q refs/heads/%s' % branch_name)
 
-		if files:
-			types = {}
-			changed = len(files)
-			deletions = 0
-			additions = 0
+			if  ret != 0:
+				raise UserWarning("Fetch failed")
 
-			for f in files:
-				fileName, fileExtension = os.path.splitext(f['filename'])
-
-				if not (fileExtension in types):
-					types[fileExtension] = 0
-
-				types[fileExtension] += 1
-
-				deletions += f['deletions']
-				additions += f['additions']
-
-			print '%s files changed, %s insertions (+), %s deletions (-)' % (changed, additions, deletions)
-			out = []
-
-			for ext in types:
-				out.append('%s %s' % (types[ext], ext))
-
-			print ', '.join(out)
-
-			print
-		else:
-			raise UserWarning("Fetch failed")
-
+		merge_base = os.popen('git merge-base %s %s' % (options['update-branch'], branch_name)).read().strip()
+		ret = os.system("git --no-pager diff --shortstat {0}..{1} && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | awk '{{print $3}}' | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name))
 		print
 	else:
 		pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
 
 		for pull_request in pull_requests:
 			get_pr_stats(repo_name, pull_request)
+
+
+# Deprecating this one, as API v3 supports getting the branch name from the pull
+# def get_pr_stats(repo_name, pull_request_ID):
+# 	if pull_request_ID != None:
+# 		is_int = False
+# 		try:
+# 			pull_request_ID = int(pull_request_ID)
+# 			pull_request = get_pull_request(repo_name, pull_request_ID)
+# 		except Exception, e:
+# 			pull_request = pull_request_ID
+
+# 		display_pull_request_minimal(pull_request)
+
+# 		# Github API v3 doesn't support getting branch names from /pulls (yet)
+# 		# branch_name = build_branch_name(pull_request)
+# 		# ret = os.system('git show-ref --verify -q refs/heads/%s' % branch_name)
+
+# 		url = get_api_url("repos/%s/pulls/%s/files" % (repo_name, pull_request['number']))
+
+# 		files = github_json_request(url)
+
+# 		if files:
+# 			types = {}
+# 			changed = len(files)
+# 			deletions = 0
+# 			additions = 0
+
+# 			for f in files:
+# 				fileName, fileExtension = os.path.splitext(f['filename'])
+
+# 				if not (fileExtension in types):
+# 					types[fileExtension] = 0
+
+# 				types[fileExtension] += 1
+
+# 				deletions += f['deletions']
+# 				additions += f['additions']
+
+# 			print '%s files changed, %s insertions (+), %s deletions (-)' % (changed, additions, deletions)
+# 			out = []
+
+# 			for ext in types:
+# 				out.append('%s %s' % (types[ext], ext))
+
+# 			print ', '.join(out)
+
+# 			print
+# 		else:
+# 			raise UserWarning("Fetch failed")
+
+# 		print
+# 	else:
+# 		pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
+
+# 		for pull_request in pull_requests:
+# 			get_pr_stats(repo_name, pull_request)
 
 def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = None, pull_title = None, submitOpenGitHub = True):
 	"""Push the current branch and create a pull request to your github reviewer
