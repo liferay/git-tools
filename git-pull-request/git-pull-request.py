@@ -717,6 +717,25 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 	if submitOpenGitHub:
 		open_URL(pull_request.get('html_url'))
 
+	# Transition JIRA
+	m = re.search("([A-Z]{3,}-\d+)", pull_title)
+
+	if m is not None and m.group(1) != '':
+		ticket_id = m.group(1)
+
+		ret = os.system('jira -a progressIssue --issue %s --step "Reassign Review Request" --assignee "brian.chan" --field "customfield_10421" --values "%s"' % (ticket_id, pull_request.get('html_url')))
+
+		if ret != 0:
+			available_steps = os.popen('jira -a getAvailableSteps --issue %s' % ticket_id).read().strip()
+			raise UserWarning("Could not update ticket -- only these steps available: %s" % available_steps)
+
+			# if not 'Close Issue' in available_steps:
+			# 	return
+			# log(available_steps)
+			# return
+
+
+
 def command_update(repo_name, target = None):
 	if target == None:
 		branch_name = get_current_branch_name()
