@@ -781,7 +781,7 @@ def fetch_pull_request(pull_request):
 
 	remote_branch_name = pull_request['head']['ref']
 
-	ret = os.system('git fetch %s %s:%s' % (repo_url, remote_branch_name, branch_name))
+	ret = os.system('git fetch %s "%s":%s' % (repo_url, remote_branch_name, branch_name))
 
 	if ret != 0:
 		ret = os.system('git show-ref --verify refs/heads/%s' % branch_name)
