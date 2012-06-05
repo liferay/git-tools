@@ -880,13 +880,7 @@ def get_pull_requests(repo_name, filter_by_update_branch=False):
 	if filter_by_update_branch:
 		update_branch = options['update-branch']
 
-		pull_requests = []
-
-		for pull in pulls:
-			pull_request = get_pull_request(repo_name, pull['number'])
-
-			if pull_request['base']['ref'] == update_branch:
-				pull_requests.append(pull_request)
+		pull_requests = [pull for pull in pulls if pull['base']['ref'] == update_branch]
 	else:
 		pull_requests = pulls
 
