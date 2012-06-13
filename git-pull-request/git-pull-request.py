@@ -130,6 +130,7 @@ import getpass
 from textwrap import fill
 
 options = {
+	'debug-mode': False,
 	# Color Scheme
 	'color-success': 'green',
 	'color-status': 'blue',
@@ -937,7 +938,8 @@ def github_request(url, params = None, authenticate = True):
 	elif authenticate == True:
 		authorize_request(req)
 
-	print url
+	if DEBUG:
+		print url
 
 	try:
 		response = urllib2.urlopen(req)
@@ -1013,7 +1015,7 @@ def load_users(filename):
 def main():
 	# parse command line options
 	try:
-		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqar:u:l:b:', ['help', 'quiet', 'all', 'repo=', 'reviewer=', 'update', 'no-update', 'user=', 'update-branch=', 'authenticate'])
+		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqar:u:l:b:', ['help', 'quiet', 'all', 'repo=', 'reviewer=', 'update', 'no-update', 'user=', 'update-branch=', 'authenticate', 'debug'])
 	except getopt.GetoptError, e:
 		raise UserWarning("%s\nFor help use --help" % e)
 
@@ -1032,7 +1034,10 @@ def main():
 
 	global users, DEFAULT_USERNAME
 	global _work_dir
+	global DEBUG
 	global auth_username, auth_token
+
+	DEBUG = options['debug-mode']
 
 	_work_dir = None
 
@@ -1083,6 +1088,8 @@ def main():
 		elif o == '--authenticate':
 			username = ''
 			auth_token = ''
+		elif o == '--debug':
+			DEBUG = True
 
 	if len(username) == 0:
 		username = raw_input("Github username: ").strip()
