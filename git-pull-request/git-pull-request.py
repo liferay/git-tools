@@ -385,21 +385,37 @@ def command_info(username, detailed = False):
 
 	total = 0
 
+	current_base_name = ''
+
 	for pull_request_info in repos:
 		issue_count = pull_request_info['open_issues']
 
 		if issue_count > 0:
 			base_name = pull_request_info['name']
+
+			if base_name != current_base_name:
+				current_base_name = base_name
+				print ""
+				print '%s:' % color_text(base_name, 'display-title-text')
+				print "---------"
+
 			repo_name = "%s/%s" % (pull_request_info['owner']['login'], base_name)
 
 			print "  %s: %s" % (color_text(base_name, 'display-info-repo-title'), color_text(issue_count, 'display-info-repo-count'))
 
 			if detailed:
-				pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
+				pull_requests = get_pull_requests(repo_name, False)
+
+				current_branch_name = ''
 
 				for pull_request in pull_requests:
-					name = (pull_request['user'].get('name') or pull_request['user'].get('login'))
-					print "    %s by %s" % (color_text("REQ %s" % pull_request.get('number'), 'display-title-number', True), color_text(name, 'display-title-user'))
+					branch_name = pull_request['base']['ref']
+					if branch_name != current_branch_name:
+						current_branch_name = branch_name
+						print ""
+						print '    %s:' % color_text(current_branch_name, 'display-title-user')
+
+					print "        %s" % display_pull_request_minimal(pull_request, True)
 
 			total += issue_count
 
@@ -760,10 +776,15 @@ def display_pull_request(pull_request):
 
 	print
 
-def display_pull_request_minimal(pull_request):
+def display_pull_request_minimal(pull_request, return_text=False):
 	"""Display minimal info about a given pull request"""
 
-	print "%s - %s by %s (%s)" % (color_text("REQUEST %s" % pull_request.get('number'), 'display-title-number', True), color_text(pull_request.get('title'), 'display-title-text', True), color_text(pull_request['user'].get('name'), 'display-title-user'), pull_request['user'].get('login'))
+	text = "%s - %s by %s (%s)" % (color_text("REQUEST %s" % pull_request.get('number'), 'display-title-number', True), color_text(pull_request.get('title'), 'display-title-text', True), color_text(pull_request['user'].get('name'), 'display-title-user'), pull_request['user'].get('login'))
+
+	if return_text:
+		return text
+
+	print text
 
 def display_status():
 	"""Displays the current branch name"""
