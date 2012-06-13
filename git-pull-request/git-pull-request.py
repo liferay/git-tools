@@ -727,7 +727,7 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 
 		if ret != 0:
 			available_steps = os.popen('jira -a getAvailableSteps --issue %s' % ticket_id).read().strip()
-			raise UserWarning("Could not update ticket -- only these steps available: %s" % available_steps)
+			print color_text('Could not update ticket -- only these steps available: %s' % available_steps, 'error')
 
 			# if not 'Close Issue' in available_steps:
 			# 	return
