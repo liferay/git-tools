@@ -235,10 +235,32 @@ def close_pull_request(repo_name, pull_request_ID, comment = None):
 		branch_treeish = f.read()
 		f.close()
 
+
+		username = ''
+
+		m = re.search("\|user:([^|]+)\|([^.]+\.\..*)$", branch_treeish)
+
+		if m is not None and m.group(1) != '':
+			username = m.group(1)
+
+		if m is not None and m.group(2) != '':
+			branch_treeish = m.group(2)
+
+		parts = branch_treeish.split('..')
+
+		merge_base = parts[0]
+		old_head = parts[1]
+
+		head_commit = os.popen('git rev-parse HEAD').read().strip()
+		head_commit = head_commit[0:10]
+
 		if comment is None:
 			comment = ''
 
-		comment += "\n\nOriginal commits: %s" % branch_treeish
+		if head_commit != old_head:
+			comment += "\n\nView just my changes: https://github.com/%s/compare/%s:%s...%s" % (repo_name, username, old_head, head_commit)
+
+		comment += "\nView total diff: https://github.com/%s/compare/%s...%s" % (repo_name, merge_base, head_commit)
 	except IOError:
 		pass
 
@@ -299,6 +321,11 @@ def command_fetch(repo_name, pull_request_ID, auto_update = False):
 	pull_request = get_pull_request(repo_name, pull_request_ID)
 	display_pull_request(pull_request)
 	branch_name = fetch_pull_request(pull_request)
+
+	username = "|user:%s|" % pull_request['user']['login']
+	f = open('/tmp/git-pull-request-treeish-%s' % pull_request_ID, 'wb')
+	f.write(username)
+	f.close()
 
 	if auto_update:
 		update_branch(branch_name)
@@ -743,6 +770,37 @@ def complete_update(branch_name):
 			ret = os.system('git checkout %s' % branch_name)
 			if ret != 0:
 				raise UserWarning("Could not checkout %s" % branch_name)
+
+	update_branch_option = options['update-branch']
+
+	parent_commit = os.popen('git merge-base %s %s' % (update_branch_option, branch_name)).read().strip()
+	head_commit = os.popen('git rev-parse HEAD').read().strip()
+
+	if parent_commit == head_commit:
+		branch_treeish = head_commit[0:10]
+	else:
+		branch_treeish = '%s..%s' % (parent_commit[0:10], head_commit[0:10])
+
+	pull_request_ID = get_pull_request_ID(branch_name)
+
+	f = open('/tmp/git-pull-request-treeish-%s' % pull_request_ID, 'r+b')
+
+	current_value = f.read()
+
+	username = ''
+
+	m = re.search("(\|user:[^|]+\|)", current_value)
+
+	if m is not None and m.group(1) != '':
+		username = m.group(1)
+
+	value = username + branch_treeish
+
+	f.truncate(0)
+	f.write(value)
+	f.close()
+
+	print color_text("Original commits: %s" % branch_treeish, 'status')
 
 	print
 	print color_text("Updating %s from %s complete" % (branch_name, update_branch_option), 'success')
@@ -1280,21 +1338,6 @@ def update_branch(branch_name):
 			raise UserWarning("Could not checkout %s, update not performed" % branch_name)
 
 	update_branch_option = options['update-branch']
-
-	parent_commit = os.popen('git merge-base %s %s' % (update_branch_option, branch_name)).read().strip()
-	head_commit = os.popen('git rev-parse HEAD').read().strip()
-
-	if parent_commit == head_commit:
-		branch_treeish = head_commit[0:10]
-	else:
-		branch_treeish = '%s..%s' % (parent_commit[0:10], head_commit[0:10])
-
-	pull_request_ID = get_pull_request_ID(branch_name)
-	f = open('/tmp/git-pull-request-treeish-%s' % pull_request_ID, 'wb')
-	f.write(branch_treeish)
-	f.close()
-
-	print color_text("Original commits: %s" % branch_treeish, 'status')
 
 	ret = os.system('git %(update-method)s %(update-branch)s' % (options))
 
