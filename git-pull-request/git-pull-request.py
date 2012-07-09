@@ -695,20 +695,20 @@ def command_update(repo_name, target = None):
 	display_status()
 
 def command_update_users(filename):
-	url = get_api_url("issues/comment/%s/%s" % ("repos/show/%s/network" % get_repo_name_for_remote("upstream")))
+	url = get_api_url("repos/%s/forks" % get_repo_name_for_remote("upstream"))
 
-	upstream_forks = github_json_request(url)
+	forks = github_json_request(url)
 
 	github_users = {}
-
-	forks = upstream_forks['network']
 
 	if len(forks) > 20:
 		print "There are more than 20 users, this could take a few minutes..."
 
+	user_api_url = get_api_url("users")
+
 	for fork in forks:
-		login = fork['owner']
-		github_user_info = github_json_request("https://api.github.com/users/%s" % login, authenticate = False)
+		login = fork['owner']['login']
+		github_user_info = github_json_request("%s/%s" % (user_api_url, login), authenticate=False)
 		email = login
 
 		if 'email' in github_user_info and github_user_info['email']:
