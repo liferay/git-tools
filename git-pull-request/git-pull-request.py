@@ -227,42 +227,71 @@ def chdir(dir):
 	f.close()
 
 def close_pull_request(repo_name, pull_request_ID, comment = None):
+	default_comment = options['close-default-comment']
+
 	if comment is None:
-		comment = options['close-default-comment']
+		comment = default_comment
 
-	try:
-		f = open('/tmp/git-pull-request-treeish-%s' % pull_request_ID, 'rb')
-		branch_treeish = f.read()
-		f.close()
+	if comment is None or comment == default_comment:
+		try:
+			f = open('/tmp/git-pull-request-treeish-%s' % pull_request_ID, 'r')
+			branch_info = json.load(f)
+			f.close()
 
+			username = branch_info['username']
 
-		username = ''
+			updated_head_commit = ''
+			original_parent_commit = ''
+			original_head_commit = ''
 
-		m = re.search("\|user:([^|]+)\|([^.]+\.\..*)$", branch_treeish)
+			if 'original' in branch_info:
+				original = branch_info['original']
+				original_parent_commit = original['parent_commit']
+				original_head_commit = original['head_commit']
 
-		if m is not None and m.group(1) != '':
-			username = m.group(1)
+			if 'updated' in branch_info:
+				updated = branch_info['updated']
+				updated_parent_commit = updated['parent_commit']
+				updated_head_commit = updated['head_commit']
 
-		if m is not None and m.group(2) != '':
-			branch_treeish = m.group(2)
+			current_head_commit = os.popen('git rev-parse HEAD').read().strip()[0:10]
 
-		parts = branch_treeish.split('..')
+			my_diff_comment = ''
 
-		merge_base = parts[0]
-		old_head = parts[1]
+			diff_commit = False
 
-		head_commit = os.popen('git rev-parse HEAD').read().strip()
-		head_commit = head_commit[0:10]
+			if original_head_commit != current_head_commit:
+				current_diff_tree = os.popen('git diff-tree -r -c -M -C --no-commit-id HEAD').read().strip()
+				original_diff_tree = os.popen('git diff-tree -r -c -M -C --no-commit-id %s' % original_head_commit).read().strip()
 
-		if comment is None:
-			comment = ''
+				current_tree_commits = current_diff_tree.split('\n')
+				original_tree_commits = original_diff_tree.split('\n')
 
-		if head_commit != old_head:
-			comment += "\n\nView just my changes: https://github.com/%s/compare/%s:%s...%s" % (repo_name, username, old_head, head_commit)
+				if len(current_tree_commits) == len(original_tree_commits):
+					for index, commit in enumerate(current_tree_commits):
+						current_commits = commit.split(' ')
+						original_commits = original_tree_commits[index].split(' ')
 
-		comment += "\nView total diff: https://github.com/%s/compare/%s...%s" % (repo_name, merge_base, head_commit)
-	except IOError:
-		pass
+						if len(current_commits) >= 4 and len(original_commits) >= 4 and current_commits[3] != original_commits[3]:
+							diff_commit = True
+							break
+				else:
+					diff_commit = True
+
+			if (updated_head_commit or original_head_commit) == current_head_commit:
+				diff_commit = False
+
+			if diff_commit:
+				my_diff_comment = "\n\nView just my changes: https://github.com/%s/compare/%s:%s...%s" % (repo_name, username, updated_head_commit or original_head_commit, current_head_commit)
+
+			if comment is None:
+				comment = ''
+
+			comment += my_diff_comment
+
+			comment += "\nView total diff: https://github.com/%s/compare/%s...%s" % (repo_name, (updated_parent_commit or original_parent_commit), current_head_commit)
+		except Exception:
+			pass
 
 	if comment is not None and comment != '':
 		post_comment(repo_name, pull_request_ID, comment)
@@ -322,9 +351,20 @@ def command_fetch(repo_name, pull_request_ID, auto_update = False):
 	display_pull_request(pull_request)
 	branch_name = fetch_pull_request(pull_request)
 
-	username = "|user:%s|" % pull_request['user']['login']
-	f = open('/tmp/git-pull-request-treeish-%s' % pull_request_ID, 'wb')
-	f.write(username)
+	parent_commit = pull_request['base']['sha']
+	head_commit = pull_request['head']['sha']
+	username = pull_request['user']['login']
+
+	branch_info = {
+		'username': username,
+		'original': {
+			'parent_commit': parent_commit[0:10],
+			'head_commit': head_commit[0:10],
+		}
+	}
+
+	f = open('/tmp/git-pull-request-treeish-%s' % pull_request_ID, 'w')
+	branch_treeish = json.dump(branch_info, f)
 	f.close()
 
 	if auto_update:
@@ -773,37 +813,13 @@ def complete_update(branch_name):
 
 	update_branch_option = options['update-branch']
 
-	parent_commit = os.popen('git merge-base %s %s' % (update_branch_option, branch_name)).read().strip()
-	head_commit = os.popen('git rev-parse HEAD').read().strip()
-
-	if parent_commit == head_commit:
-		branch_treeish = head_commit[0:10]
-	else:
-		branch_treeish = '%s..%s' % (parent_commit[0:10], head_commit[0:10])
-
-	pull_request_ID = get_pull_request_ID(branch_name)
-
-	f = open('/tmp/git-pull-request-treeish-%s' % pull_request_ID, 'r+b')
-
-	current_value = f.read()
-
-	username = ''
-
-	m = re.search("(\|user:[^|]+\|)", current_value)
-
-	if m is not None and m.group(1) != '':
-		username = m.group(1)
-
-	value = username + branch_treeish
-
-	f.truncate(0)
-	f.write(value)
-	f.close()
-
-	print color_text("Original commits: %s" % branch_treeish, 'status')
+	branch_treeish = update_meta()
 
 	print
 	print color_text("Updating %s from %s complete" % (branch_name, update_branch_option), 'success')
+
+def command_update_meta():
+	update_meta()
 
 def continue_update():
 	if options['update-method'] == 'merge':
@@ -1091,6 +1107,39 @@ def load_users(filename):
 
 	return github_users
 
+def update_meta():
+	branch_name = get_current_branch_name()
+	update_branch_option = options['update-branch']
+	parent_commit = os.popen('git merge-base %s %s' % (update_branch_option, branch_name)).read().strip()[0:10]
+	head_commit = os.popen('git rev-parse HEAD').read().strip()[0:10]
+
+	updated = {
+		'parent_commit': parent_commit,
+		'head_commit': head_commit
+	}
+
+	pull_request_ID = get_pull_request_ID(branch_name)
+
+	f = open('/tmp/git-pull-request-treeish-%s' % pull_request_ID, 'r+')
+
+	current_value = json.load(f)
+
+	current_value['updated'] = updated
+
+	f.seek(0)
+	f.truncate(0)
+	json.dump(current_value, f)
+	f.close()
+
+	if parent_commit == head_commit:
+		branch_treeish = head_commit
+	else:
+		branch_treeish = '%s..%s' % (parent_commit, head_commit)
+
+	print color_text("Original commits: %s" % branch_treeish, 'status')
+
+	return branch_treeish
+
 def main():
 	# parse command line options
 	try:
@@ -1252,6 +1301,8 @@ def main():
 				command_open(repo_name)
 		elif command == 'pull':
 			command_pull(repo_name)
+		elif command == 'update-meta':
+			command_update_meta()
 		elif command == 'submit':
 			pull_body = None
 			pull_title = None
