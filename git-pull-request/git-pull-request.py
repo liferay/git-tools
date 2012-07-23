@@ -1274,7 +1274,19 @@ def main():
 				command_alias(args[1], args[2], users_alias_file)
 		elif command == 'close':
 			if arg_length >= 2:
-				command_close(repo_name, args[1])
+				comment = args[1]
+				pull_request_ID = comment
+
+				if comment.isdigit():
+					comment = ''
+
+					if arg_length == 3:
+						comment = args[2]
+
+					print color_text("Closing pull request", 'status')
+					close_pull_request(repo_name, pull_request_ID, comment)
+				else:
+					command_close(repo_name, comment)
 			else:
 				command_close(repo_name)
 		elif command in ('continue-update', 'cu'):
