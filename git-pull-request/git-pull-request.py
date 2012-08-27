@@ -856,7 +856,7 @@ def display_pull_request(pull_request):
 def display_pull_request_minimal(pull_request, return_text=False):
 	"""Display minimal info about a given pull request"""
 
-	text = "%s - %s by %s (%s)" % (color_text("REQUEST %s" % pull_request.get('number'), 'display-title-number', True), color_text(pull_request.get('title'), 'display-title-text', True), color_text(pull_request['user'].get('name'), 'display-title-user'), pull_request['user'].get('login'))
+	text = "%s - %s (%s)" % (color_text("REQUEST %s" % pull_request.get('number'), 'display-title-number', True), color_text(pull_request.get('title'), 'display-title-text', True), color_text(pull_request['user'].get('login'), 'display-title-user'))
 
 	if return_text:
 		return text
