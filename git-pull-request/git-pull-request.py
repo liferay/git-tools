@@ -738,19 +738,18 @@ def command_update(repo_name, target = None):
 	display_status()
 
 def command_update_users(filename):
-	url = get_api_url("repos/%s/forks" % get_repo_name_for_remote("upstream"))
+	url = get_api_url("orgs/liferay/members")
 
 	forks = github_json_request(url)
 
 	github_users = {}
 
-	if len(forks) > 20:
-		print "There are more than 20 users, this could take a few minutes..."
+	print "There are %s users, this could take a few minutes..." % len(forks)
 
 	user_api_url = get_api_url("users")
 
 	for fork in forks:
-		login = fork['owner']['login']
+		login = fork['login']
 		github_user_info = github_json_request("%s/%s" % (user_api_url, login), authenticate=False)
 		email = login
 
