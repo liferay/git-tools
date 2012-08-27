@@ -750,13 +750,47 @@ def command_update_users(filename):
 
 	for fork in forks:
 		login = fork['login']
+
 		github_user_info = github_json_request("%s/%s" % (user_api_url, login), authenticate=False)
-		email = login
 
-		if 'email' in github_user_info and github_user_info['email']:
-			email = github_user_info['email'].split("@")[0]
+		email = None
 
-		github_users[email] = login
+		if 'email' in github_user_info:
+			email = github_user_info['email']
+
+			if email != None and email.endswith('@liferay.com'):
+				email = email[:-12]
+
+				if email.isnumeric():
+					email = None
+			else:
+				email = None
+
+		if email == None:
+			if 'name' in github_user_info and ' ' in github_user_info['name']:
+				email = github_user_info['name'].lower()
+				email = email.replace(' ', '.')
+				email = email.replace('(', '.')
+				email = email.replace(')', '.')
+
+				while '..' in email:
+					email = email.replace('..', '.')
+
+				# Unicode characters usually do not appear in Liferay emails, so
+				# we'll replace them with the closest ASCII equivalent
+
+				email = email.replace(u'\u00e1', 'a')
+				email = email.replace(u'\u00e3', 'a')
+				email = email.replace(u'\u00e9', 'e')
+				email = email.replace(u'\u00f3', 'o')
+				email = email.replace(u'\u00fd', 'y')
+				email = email.replace(u'\u0107', 'c')
+				email = email.replace(u'\u010d', 'c')
+				email = email.replace(u'\u0151', 'o')
+				email = email.replace(u'\u0161', 's')
+
+		if email != None:
+			github_users[email] = login
 
 	github_users_file = open(filename, 'w')
 	json.dump(github_users, github_users_file)
