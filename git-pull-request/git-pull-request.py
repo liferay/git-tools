@@ -718,22 +718,51 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 		open_URL(pull_request.get('html_url'))
 
 	# Transition JIRA
-	m = re.search("([A-Z]{3,}-\d+)", pull_title)
+	transition_jira(pull_title, "Reassign Review Request", pull_request.get('html_url'), "brian.chan")
+
+def transition_jira(ticket_id, step, url, assignee):
+	m = re.search("([A-Z]{3,}-\d+)", ticket_id)
 
 	if m is not None and m.group(1) != '':
 		ticket_id = m.group(1)
+	else:
+		ticket_id = None
 
-		ret = os.system('jira -a progressIssue --issue %s --step "Reassign Review Request" --assignee "brian.chan" --field "customfield_10421" --values "%s"' % (ticket_id, pull_request.get('html_url')))
+	if ticket_id:
+		if assignee and '/' in assignee:
+			assignee = assignee.split('/')[0]
+		log(step)
+		ret = os.system('jira -a progressIssue --issue %s --step "%s" --assignee "%s" --field "customfield_10421" --values "%s"' % (ticket_id, step, assignee, url))
 
 		if ret != 0:
 			available_steps = os.popen('jira -a getAvailableSteps --issue %s' % ticket_id).read().strip()
 			print color_text('Could not update ticket -- only these steps available: %s' % available_steps, 'error')
 
-			# if not 'Close Issue' in available_steps:
-			# 	return
-			# log(available_steps)
-			# return
+			# 2 available workflow steps for issue: LPS-28166
+			# "Id","Name"
+			# 3,"Reopen Issue"
+			# 2,"Close Issue"
 
+			if available_steps:
+				chosen_step = raw_input("Which step do you wish to take? (none): ").strip()
+
+				if chosen_step:
+					steps = available_steps.split('\n"Id","Name"\n')
+					steps_map = {}
+
+					if len(steps) > 1:
+						steps = steps[1].split('\n')
+
+						for step in steps:
+							pieces = step.split(',')
+							steps_map[pieces[0].strip()] = pieces[1].strip()
+
+						if chosen_step in steps_map:
+							transition_jira(ticket_id, steps_map[chosen_step], url, assignee)
+						else:
+							print color_text('The choice, %s, is not valid' % chosen_step, 'error')
+					else:
+						print color_text('Could not find any alternative steps', 'error')
 
 
 def command_update(repo_name, target = None):
