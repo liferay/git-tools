@@ -240,6 +240,7 @@ def close_pull_request(repo_name, pull_request_ID, comment = None):
 
 			username = branch_info['username']
 
+			updated_parent_commit = ''
 			updated_head_commit = ''
 			original_parent_commit = ''
 			original_head_commit = ''
