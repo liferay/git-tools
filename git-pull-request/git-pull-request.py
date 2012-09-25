@@ -115,6 +115,7 @@ import sys
 import urllib
 import urllib2
 import getpass
+import tempfile
 # import isodate
 # from datetime import date
 
@@ -186,6 +187,7 @@ options = {
 
 URL_BASE = "https://api.github.com/%s"
 SCRIPT_NOTE = 'GitPullRequest Script (by Liferay)'
+TMP_PATH = tempfile.gettempdir() + '/%s'
 
 def authorize_request(req, token=None, auth_type="token"):
 	"""Add the Authorize header to the request"""
@@ -222,7 +224,7 @@ def build_pull_request_title(branch_name):
 	return branch_name
 
 def chdir(dir):
-	f = open('/tmp/git-pull-request-chdir', 'wb')
+	f = open(get_tmp_path('git-pull-request-chdir'), 'wb')
 	f.write(dir)
 	f.close()
 
@@ -234,7 +236,7 @@ def close_pull_request(repo_name, pull_request_ID, comment = None):
 
 	if comment is None or comment == default_comment:
 		try:
-			f = open('/tmp/git-pull-request-treeish-%s' % pull_request_ID, 'r')
+			f = open(get_tmp_path('git-pull-request-treeish-%s' % pull_request_ID), 'r')
 			branch_info = json.load(f)
 			f.close()
 
@@ -364,7 +366,7 @@ def command_fetch(repo_name, pull_request_ID, auto_update = False):
 		}
 	}
 
-	f = open('/tmp/git-pull-request-treeish-%s' % pull_request_ID, 'w')
+	f = open(get_tmp_path('git-pull-request-treeish-%s' % pull_request_ID), 'w')
 	branch_treeish = json.dump(branch_info, f)
 	f.close()
 
@@ -935,7 +937,7 @@ def fetch_pull_request(pull_request):
 		raise UserWarning("Fetch failed")
 
 	try:
-		os.remove('/tmp/git-pull-request-treeish-%s' % pull_request['number'])
+		os.remove(get_tmp_path('git-pull-request-treeish-%s' % pull_request['number']))
 	except OSError:
 		pass
 
@@ -1062,6 +1064,9 @@ def get_repo_url(pull_request):
 def get_api_url(command):
 	return URL_BASE % command
 
+def get_tmp_path(filename):
+	return TMP_PATH % filename
+
 def github_request(url, params = None, authenticate = True):
 	if params is not None:
 		encode_data = params
@@ -1169,7 +1174,7 @@ def update_meta():
 
 	pull_request_ID = get_pull_request_ID(branch_name)
 
-	f = open('/tmp/git-pull-request-treeish-%s' % pull_request_ID, 'r+')
+	f = open(get_tmp_path('git-pull-request-treeish-%s' % pull_request_ID), 'r+')
 
 	current_value = json.load(f)
 
