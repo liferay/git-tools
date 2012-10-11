@@ -601,7 +601,7 @@ def get_pr_stats(repo_name, pull_request_ID):
 				raise UserWarning("Fetch failed")
 
 		merge_base = os.popen('git merge-base %s %s' % (options['update-branch'], branch_name)).read().strip()
-		ret = os.system("git --no-pager diff --shortstat {0}..{1} && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | awk '{{print $3}}' | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name))
+		ret = os.system("git --no-pager diff --shortstat {0}..{1} && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | cut -f 3- | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name))
 		print
 	else:
 		pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
