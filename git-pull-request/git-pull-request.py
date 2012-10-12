@@ -296,6 +296,11 @@ def close_pull_request(repo_name, pull_request_ID, comment = None):
 			if comment is None:
 				comment = ''
 
+			new_pr_url = meta('new_pr_url')
+
+			if new_pr_url and new_pr_url != '':
+				comment += "\nPull request submitted at: %s" % new_pr_url
+
 			comment += my_diff_comment
 
 			comment += "\nView total diff: https://github.com/%s/compare/%s...%s" % (repo_name, (updated_parent_commit or original_parent_commit), current_head_commit)
@@ -616,62 +621,6 @@ def get_pr_stats(repo_name, pull_request_ID):
 			get_pr_stats(repo_name, pull_request)
 
 
-# Deprecating this one, as API v3 supports getting the branch name from the pull
-# def get_pr_stats(repo_name, pull_request_ID):
-# 	if pull_request_ID != None:
-# 		is_int = False
-# 		try:
-# 			pull_request_ID = int(pull_request_ID)
-# 			pull_request = get_pull_request(repo_name, pull_request_ID)
-# 		except Exception, e:
-# 			pull_request = pull_request_ID
-
-# 		display_pull_request_minimal(pull_request)
-
-# 		# Github API v3 doesn't support getting branch names from /pulls (yet)
-# 		# branch_name = build_branch_name(pull_request)
-# 		# ret = os.system('git show-ref --verify -q refs/heads/%s' % branch_name)
-
-# 		url = get_api_url("repos/%s/pulls/%s/files" % (repo_name, pull_request['number']))
-
-# 		files = github_json_request(url)
-
-# 		if files:
-# 			types = {}
-# 			changed = len(files)
-# 			deletions = 0
-# 			additions = 0
-
-# 			for f in files:
-# 				fileName, fileExtension = os.path.splitext(f['filename'])
-
-# 				if not (fileExtension in types):
-# 					types[fileExtension] = 0
-
-# 				types[fileExtension] += 1
-
-# 				deletions += f['deletions']
-# 				additions += f['additions']
-
-# 			print '%s files changed, %s insertions (+), %s deletions (-)' % (changed, additions, deletions)
-# 			out = []
-
-# 			for ext in types:
-# 				out.append('%s %s' % (types[ext], ext))
-
-# 			print ', '.join(out)
-
-# 			print
-# 		else:
-# 			raise UserWarning("Fetch failed")
-
-# 		print
-# 	else:
-# 		pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
-
-# 		for pull_request in pull_requests:
-# 			get_pr_stats(repo_name, pull_request)
-
 def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = None, pull_title = None, submitOpenGitHub = True):
 	"""Push the current branch and create a pull request to your github reviewer
 	(or upstream)"""
@@ -715,6 +664,11 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 
 	pull_request = github_json_request(url, params)
 
+	new_pr_url = pull_request.get('html_url')
+
+	if new_pr_url and new_pr_url != '':
+		meta('new_pr_url', new_pr_url)
+
 	print
 	display_pull_request(pull_request)
 	print
@@ -724,7 +678,7 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 	display_status()
 
 	if submitOpenGitHub:
-		open_URL(pull_request.get('html_url'))
+		open_URL(new_pr_url)
 
 def command_update(repo_name, target = None):
 	if target == None:
@@ -1078,7 +1032,12 @@ def get_pull_request_ID(branch_name):
 
 	m = re.search("^pull-request-(\d+)", branch_name)
 
-	return int(m.group(1))
+	pull_request_ID = None
+
+	if m and m.group(1) != '':
+		pull_request_ID = int(m.group(1))
+
+	return pull_request_ID
 
 def get_repo_name_for_remote(remote_name):
 	"""Returns the repository name for the remote with the name"""
@@ -1203,6 +1162,46 @@ def load_users(filename):
 
 	return github_users
 
+def meta(key = None, value = None):
+	branch_name = get_current_branch_name(False)
+
+	pull_request_ID = get_pull_request_ID(branch_name)
+
+	val = None
+
+	if pull_request_ID is not None:
+		f = open(get_tmp_path('git-pull-request-treeish-%s' % pull_request_ID), 'r+')
+
+		current_value = json.load(f)
+		current_obj = current_value
+
+		val = current_value
+
+		if key != None:
+			pieces = key.split('.')
+
+			key = pieces.pop()
+
+			for word in pieces:
+				current_obj = current_obj[word]
+
+			if value == None:
+				if key in current_obj:
+					val = current_obj[key]
+				else:
+					val = ''
+
+		if value != None:
+			val = value
+			current_obj[key] = value
+			f.seek(0)
+			f.truncate(0)
+			json.dump(current_value, f)
+
+		f.close()
+
+	return val
+
 def update_meta():
 	branch_name = get_current_branch_name()
 	update_branch_option = options['update-branch']
@@ -1214,18 +1213,7 @@ def update_meta():
 		'head_commit': head_commit
 	}
 
-	pull_request_ID = get_pull_request_ID(branch_name)
-
-	f = open(get_tmp_path('git-pull-request-treeish-%s' % pull_request_ID), 'r+')
-
-	current_value = json.load(f)
-
-	current_value['updated'] = updated
-
-	f.seek(0)
-	f.truncate(0)
-	json.dump(current_value, f)
-	f.close()
+	meta('updated', updated)
 
 	if parent_commit == head_commit:
 		branch_treeish = head_commit
