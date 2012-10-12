@@ -175,6 +175,9 @@ options = {
 	# Possible options: 'merge', 'rebase'
 	'update-method': 'merge',
 
+	# The organization to update users from (set to None or an empty string to update from the current fork)
+	'user-organization': 'liferay',
+
 	# Determines whether to open newly submitted pull requests on github
 	'submit-open-github': True,
 
@@ -738,56 +741,33 @@ def command_update(repo_name, target = None):
 	display_status()
 
 def command_update_users(filename):
-	url = get_api_url("orgs/liferay/members")
+	user_organization = options['user-organization']
 
-	forks = github_json_request(url)
+	if user_organization:
+		url = get_api_url("orgs/%s/members" % user_organization)
+	else:
+		url = get_api_url("repos/%s/forks" % get_repo_name_for_remote("upstream"))
+
+	items = github_json_request(url)
+
+	print "There are %s users, this could take a few minutes..." % len(items)
 
 	github_users = {}
 
-	print "There are %s users, this could take a few minutes..." % len(forks)
-
 	user_api_url = get_api_url("users")
 
-	for fork in forks:
-		login = fork['login']
+	for item in items:
+		user_info = item
+
+		if 'owner' in item:
+			user_info = item['owner']
+
+		login = user_info['login']
 
 		github_user_info = github_json_request("%s/%s" % (user_api_url, login), authenticate=False)
+		email = login
 
-		email = None
-
-		if 'email' in github_user_info:
-			email = github_user_info['email']
-
-			if email != None and email.endswith('@liferay.com'):
-				email = email[:-12]
-
-				if email.isnumeric():
-					email = None
-			else:
-				email = None
-
-		if email == None:
-			if 'name' in github_user_info and ' ' in github_user_info['name']:
-				email = github_user_info['name'].lower()
-				email = email.replace(' ', '.')
-				email = email.replace('(', '.')
-				email = email.replace(')', '.')
-
-				while '..' in email:
-					email = email.replace('..', '.')
-
-				# Unicode characters usually do not appear in Liferay emails, so
-				# we'll replace them with the closest ASCII equivalent
-
-				email = email.replace(u'\u00e1', 'a')
-				email = email.replace(u'\u00e3', 'a')
-				email = email.replace(u'\u00e9', 'e')
-				email = email.replace(u'\u00f3', 'o')
-				email = email.replace(u'\u00fd', 'y')
-				email = email.replace(u'\u0107', 'c')
-				email = email.replace(u'\u010d', 'c')
-				email = email.replace(u'\u0151', 'o')
-				email = email.replace(u'\u0161', 's')
+		email = get_user_email(github_user_info)
 
 		if email != None:
 			github_users[email] = login
@@ -798,6 +778,44 @@ def command_update_users(filename):
 	github_users_file.close()
 
 	return github_users
+
+def get_user_email(github_user_info):
+	email = None
+
+	if 'email' in github_user_info:
+		email = github_user_info['email']
+
+		if email != None and email.endswith('@liferay.com'):
+			email = email[:-12]
+
+			if email.isnumeric():
+				email = None
+		else:
+			email = None
+
+	if email == None:
+		if 'name' in github_user_info and ' ' in github_user_info['name']:
+			email = github_user_info['name'].lower()
+			email = email.replace(' ', '.')
+			email = email.replace('(', '.')
+			email = email.replace(')', '.')
+
+			email = re.sub('\.+', '.', email)
+
+			# Unicode characters usually do not appear in Liferay emails, so
+			# we'll replace them with the closest ASCII equivalent
+
+			email = email.replace(u'\u00e1', 'a')
+			email = email.replace(u'\u00e3', 'a')
+			email = email.replace(u'\u00e9', 'e')
+			email = email.replace(u'\u00f3', 'o')
+			email = email.replace(u'\u00fd', 'y')
+			email = email.replace(u'\u0107', 'c')
+			email = email.replace(u'\u010d', 'c')
+			email = email.replace(u'\u0151', 'o')
+			email = email.replace(u'\u0161', 's')
+
+	return email
 
 def command_pull(repo_name):
 	"""Pulls changes from the remote branch into the local branch of the pull
