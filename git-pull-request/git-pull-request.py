@@ -114,6 +114,7 @@ import re
 import sys
 import urllib
 import urllib2
+import urlparse
 import getpass
 import tempfile
 # import isodate
@@ -191,6 +192,8 @@ options = {
 URL_BASE = "https://api.github.com/%s"
 SCRIPT_NOTE = 'GitPullRequest Script (by Liferay)'
 TMP_PATH = tempfile.gettempdir() + '/%s'
+
+MAP_RESPONSE = {}
 
 def authorize_request(req, token=None, auth_type="token"):
 	"""Add the Authorize header to the request"""
@@ -740,19 +743,36 @@ def command_update(repo_name, target = None):
 	print
 	display_status()
 
-def command_update_users(filename):
-	user_organization = options['user-organization']
+def command_update_users(filename, url = None, github_users = None, total_pages = 0, all_pages = True):
+	if url is None:
+		user_organization = options['user-organization']
 
-	if user_organization:
-		url = get_api_url("orgs/%s/members" % user_organization)
-	else:
-		url = get_api_url("repos/%s/forks" % get_repo_name_for_remote("upstream"))
+		if user_organization:
+			url = get_api_url("orgs/%s/members" % user_organization)
+		else:
+			url = get_api_url("repos/%s/forks" % get_repo_name_for_remote("upstream"))
+
+			params = {'per_page': '100', 'sort': 'oldest'}
+
+			url_parts = list(urlparse.urlparse(url))
+			query = dict(urlparse.parse_qsl(url_parts[4]))
+			query.update(params)
+
+			url_parts[4] = urllib.urlencode(query)
+
+			url = urlparse.urlunparse(url_parts)
+
+	if github_users is None:
+		github_users = {}
 
 	items = github_json_request(url)
 
-	print "There are %s users, this could take a few minutes..." % len(items)
+	m = re.search('[?&]page=(\d)+', url)
 
-	github_users = {}
+	if m is not None and m.group(1) != '':
+		print "Doing another request for page: %s of %s" % (m.group(1), total_pages)
+	else:
+		print "There are %s users, this could take a few minutes..." % len(items)
 
 	user_api_url = get_api_url("users")
 
@@ -771,6 +791,23 @@ def command_update_users(filename):
 
 		if email != None:
 			github_users[email] = login
+
+	if all_pages:
+		link_header = MAP_RESPONSE[url].info().getheader('Link')
+
+		if link_header is not None:
+			m = re.search('<([^>]+)>; rel="next",', link_header)
+
+			if m is not None and m.group(1) != '':
+				url = m.group(1)
+
+				if total_pages == 0:
+					m1 = re.search('<[^>]+[&?]page=(\d+)[^>]+>; rel="last"', link_header)
+
+					if m1 is not None and m1.group(1) != '':
+						total_pages = m1.group(1)
+
+				command_update_users(filename, url, github_users, total_pages)
 
 	github_users_file = open(filename, 'w')
 	json.dump(github_users, github_users_file)
@@ -1104,6 +1141,8 @@ def github_request(url, params = None, authenticate = True):
 		raise UserWarning("Error communicating with github: \n%s\n%s" % (url, msg))
 
 	data = response.read()
+
+	MAP_RESPONSE[url] = response
 
 	if data == '':
 		raise UserWarning("Invalid response from github")
