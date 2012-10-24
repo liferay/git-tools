@@ -990,7 +990,7 @@ def get_work_dir():
 			_work_dir = os.popen('git config git-pull-request.%s' % work_dir_option).read().strip()
 			options[work_dir_option] = _work_dir
 
-		if not os.path.exists(_work_dir):
+		if not _work_dir or not os.path.exists(_work_dir):
 			_work_dir = False
 
 		if not _work_dir:
