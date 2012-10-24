@@ -7,4 +7,4 @@ rem		pr = !c:/projects/git-tools/git-pull-request/git-pull-request.bat
 rem
 rem Run the script as: "git pr"
 
-%~dp0\git-pull-request.py %*
+"%~dp0\git-pull-request.py" %*

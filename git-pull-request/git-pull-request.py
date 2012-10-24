@@ -114,6 +114,7 @@ import re
 import sys
 import urllib
 import urllib2
+import urlparse
 import getpass
 import tempfile
 # import isodate
@@ -175,6 +176,9 @@ options = {
 	# Possible options: 'merge', 'rebase'
 	'update-method': 'merge',
 
+	# The organization to update users from (set to None or an empty string to update from the current fork)
+	'user-organization': 'liferay',
+
 	# Determines whether to open newly submitted pull requests on github
 	'submit-open-github': True,
 
@@ -188,6 +192,8 @@ options = {
 URL_BASE = "https://api.github.com/%s"
 SCRIPT_NOTE = 'GitPullRequest Script (by Liferay)'
 TMP_PATH = tempfile.gettempdir() + '/%s'
+
+MAP_RESPONSE = {}
 
 def authorize_request(req, token=None, auth_type="token"):
 	"""Add the Authorize header to the request"""
@@ -289,6 +295,11 @@ def close_pull_request(repo_name, pull_request_ID, comment = None):
 
 			if comment is None:
 				comment = ''
+
+			new_pr_url = meta('new_pr_url')
+
+			if new_pr_url and new_pr_url != '':
+				comment += "\nPull request submitted at: %s" % new_pr_url
 
 			comment += my_diff_comment
 
@@ -601,7 +612,7 @@ def get_pr_stats(repo_name, pull_request_ID):
 				raise UserWarning("Fetch failed")
 
 		merge_base = os.popen('git merge-base %s %s' % (options['update-branch'], branch_name)).read().strip()
-		ret = os.system("git --no-pager diff --shortstat {0}..{1} && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | awk '{{print $3}}' | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name))
+		ret = os.system("git --no-pager diff --shortstat {0}..{1} && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | cut -f 3- | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name))
 		print
 	else:
 		pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
@@ -609,62 +620,6 @@ def get_pr_stats(repo_name, pull_request_ID):
 		for pull_request in pull_requests:
 			get_pr_stats(repo_name, pull_request)
 
-
-# Deprecating this one, as API v3 supports getting the branch name from the pull
-# def get_pr_stats(repo_name, pull_request_ID):
-# 	if pull_request_ID != None:
-# 		is_int = False
-# 		try:
-# 			pull_request_ID = int(pull_request_ID)
-# 			pull_request = get_pull_request(repo_name, pull_request_ID)
-# 		except Exception, e:
-# 			pull_request = pull_request_ID
-
-# 		display_pull_request_minimal(pull_request)
-
-# 		# Github API v3 doesn't support getting branch names from /pulls (yet)
-# 		# branch_name = build_branch_name(pull_request)
-# 		# ret = os.system('git show-ref --verify -q refs/heads/%s' % branch_name)
-
-# 		url = get_api_url("repos/%s/pulls/%s/files" % (repo_name, pull_request['number']))
-
-# 		files = github_json_request(url)
-
-# 		if files:
-# 			types = {}
-# 			changed = len(files)
-# 			deletions = 0
-# 			additions = 0
-
-# 			for f in files:
-# 				fileName, fileExtension = os.path.splitext(f['filename'])
-
-# 				if not (fileExtension in types):
-# 					types[fileExtension] = 0
-
-# 				types[fileExtension] += 1
-
-# 				deletions += f['deletions']
-# 				additions += f['additions']
-
-# 			print '%s files changed, %s insertions (+), %s deletions (-)' % (changed, additions, deletions)
-# 			out = []
-
-# 			for ext in types:
-# 				out.append('%s %s' % (types[ext], ext))
-
-# 			print ', '.join(out)
-
-# 			print
-# 		else:
-# 			raise UserWarning("Fetch failed")
-
-# 		print
-# 	else:
-# 		pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
-
-# 		for pull_request in pull_requests:
-# 			get_pr_stats(repo_name, pull_request)
 
 def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = None, pull_title = None, submitOpenGitHub = True):
 	"""Push the current branch and create a pull request to your github reviewer
@@ -709,6 +664,11 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 
 	pull_request = github_json_request(url, params)
 
+	new_pr_url = pull_request.get('html_url')
+
+	if new_pr_url and new_pr_url != '':
+		meta('new_pr_url', new_pr_url)
+
 	print
 	display_pull_request(pull_request)
 	print
@@ -718,7 +678,7 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 	display_status()
 
 	if submitOpenGitHub:
-		open_URL(pull_request.get('html_url'))
+		open_URL(new_pr_url)
 
 	# Transition JIRA
 	transition_jira(pull_title, "Reassign Review Request", pull_request.get('html_url'), "brian.chan")
@@ -785,27 +745,71 @@ def command_update(repo_name, target = None):
 	print
 	display_status()
 
-def command_update_users(filename):
-	url = get_api_url("repos/%s/forks" % get_repo_name_for_remote("upstream"))
+def command_update_users(filename, url = None, github_users = None, total_pages = 0, all_pages = True):
+	if url is None:
+		user_organization = options['user-organization']
 
-	forks = github_json_request(url)
+		if user_organization:
+			url = get_api_url("orgs/%s/members" % user_organization)
+		else:
+			url = get_api_url("repos/%s/forks" % get_repo_name_for_remote("upstream"))
 
-	github_users = {}
+			params = {'per_page': '100', 'sort': 'oldest'}
 
-	if len(forks) > 20:
-		print "There are more than 20 users, this could take a few minutes..."
+			url_parts = list(urlparse.urlparse(url))
+			query = dict(urlparse.parse_qsl(url_parts[4]))
+			query.update(params)
+
+			url_parts[4] = urllib.urlencode(query)
+
+			url = urlparse.urlunparse(url_parts)
+
+	if github_users is None:
+		github_users = {}
+
+	items = github_json_request(url)
+
+	m = re.search('[?&]page=(\d)+', url)
+
+	if m is not None and m.group(1) != '':
+		print "Doing another request for page: %s of %s" % (m.group(1), total_pages)
+	else:
+		print "There are %s users, this could take a few minutes..." % len(items)
 
 	user_api_url = get_api_url("users")
 
-	for fork in forks:
-		login = fork['owner']['login']
+	for item in items:
+		user_info = item
+
+		if 'owner' in item:
+			user_info = item['owner']
+
+		login = user_info['login']
+
 		github_user_info = github_json_request("%s/%s" % (user_api_url, login), authenticate=False)
 		email = login
 
-		if 'email' in github_user_info and github_user_info['email']:
-			email = github_user_info['email'].split("@")[0]
+		email = get_user_email(github_user_info)
 
-		github_users[email] = login
+		if email != None:
+			github_users[email] = login
+
+	if all_pages:
+		link_header = MAP_RESPONSE[url].info().getheader('Link')
+
+		if link_header is not None:
+			m = re.search('<([^>]+)>; rel="next",', link_header)
+
+			if m is not None and m.group(1) != '':
+				url = m.group(1)
+
+				if total_pages == 0:
+					m1 = re.search('<[^>]+[&?]page=(\d+)[^>]+>; rel="last"', link_header)
+
+					if m1 is not None and m1.group(1) != '':
+						total_pages = m1.group(1)
+
+				command_update_users(filename, url, github_users, total_pages)
 
 	github_users_file = open(filename, 'w')
 	json.dump(github_users, github_users_file)
@@ -813,6 +817,44 @@ def command_update_users(filename):
 	github_users_file.close()
 
 	return github_users
+
+def get_user_email(github_user_info):
+	email = None
+
+	if 'email' in github_user_info:
+		email = github_user_info['email']
+
+		if email != None and email.endswith('@liferay.com'):
+			email = email[:-12]
+
+			if email.isnumeric():
+				email = None
+		else:
+			email = None
+
+	if email == None:
+		if 'name' in github_user_info and ' ' in github_user_info['name']:
+			email = github_user_info['name'].lower()
+			email = email.replace(' ', '.')
+			email = email.replace('(', '.')
+			email = email.replace(')', '.')
+
+			email = re.sub('\.+', '.', email)
+
+			# Unicode characters usually do not appear in Liferay emails, so
+			# we'll replace them with the closest ASCII equivalent
+
+			email = email.replace(u'\u00e1', 'a')
+			email = email.replace(u'\u00e3', 'a')
+			email = email.replace(u'\u00e9', 'e')
+			email = email.replace(u'\u00f3', 'o')
+			email = email.replace(u'\u00fd', 'y')
+			email = email.replace(u'\u0107', 'c')
+			email = email.replace(u'\u010d', 'c')
+			email = email.replace(u'\u0151', 'o')
+			email = email.replace(u'\u0161', 's')
+
+	return email
 
 def command_pull(repo_name):
 	"""Pulls changes from the remote branch into the local branch of the pull
@@ -904,7 +946,7 @@ def display_pull_request(pull_request):
 def display_pull_request_minimal(pull_request, return_text=False):
 	"""Display minimal info about a given pull request"""
 
-	text = "%s - %s by %s (%s)" % (color_text("REQUEST %s" % pull_request.get('number'), 'display-title-number', True), color_text(pull_request.get('title'), 'display-title-text', True), color_text(pull_request['user'].get('name'), 'display-title-user'), pull_request['user'].get('login'))
+	text = "%s - %s (%s)" % (color_text("REQUEST %s" % pull_request.get('number'), 'display-title-number', True), color_text(pull_request.get('title'), 'display-title-text', True), color_text(pull_request['user'].get('login'), 'display-title-user'))
 
 	if return_text:
 		return text
@@ -996,7 +1038,7 @@ def get_work_dir():
 			_work_dir = os.popen('git config git-pull-request.%s' % work_dir_option).read().strip()
 			options[work_dir_option] = _work_dir
 
-		if not os.path.exists(_work_dir):
+		if not _work_dir or not os.path.exists(_work_dir):
 			_work_dir = False
 
 		if not _work_dir:
@@ -1038,7 +1080,12 @@ def get_pull_request_ID(branch_name):
 
 	m = re.search("^pull-request-(\d+)", branch_name)
 
-	return int(m.group(1))
+	pull_request_ID = None
+
+	if m and m.group(1) != '':
+		pull_request_ID = int(m.group(1))
+
+	return pull_request_ID
 
 def get_repo_name_for_remote(remote_name):
 	"""Returns the repository name for the remote with the name"""
@@ -1102,6 +1149,8 @@ def github_request(url, params = None, authenticate = True):
 
 	data = response.read()
 
+	MAP_RESPONSE[url] = response
+
 	if data == '':
 		raise UserWarning("Invalid response from github")
 
@@ -1161,6 +1210,46 @@ def load_users(filename):
 
 	return github_users
 
+def meta(key = None, value = None):
+	branch_name = get_current_branch_name(False)
+
+	pull_request_ID = get_pull_request_ID(branch_name)
+
+	val = None
+
+	if pull_request_ID is not None:
+		f = open(get_tmp_path('git-pull-request-treeish-%s' % pull_request_ID), 'r+')
+
+		current_value = json.load(f)
+		current_obj = current_value
+
+		val = current_value
+
+		if key != None:
+			pieces = key.split('.')
+
+			key = pieces.pop()
+
+			for word in pieces:
+				current_obj = current_obj[word]
+
+			if value == None:
+				if key in current_obj:
+					val = current_obj[key]
+				else:
+					val = ''
+
+		if value != None:
+			val = value
+			current_obj[key] = value
+			f.seek(0)
+			f.truncate(0)
+			json.dump(current_value, f)
+
+		f.close()
+
+	return val
+
 def update_meta():
 	branch_name = get_current_branch_name()
 	update_branch_option = options['update-branch']
@@ -1172,18 +1261,7 @@ def update_meta():
 		'head_commit': head_commit
 	}
 
-	pull_request_ID = get_pull_request_ID(branch_name)
-
-	f = open(get_tmp_path('git-pull-request-treeish-%s' % pull_request_ID), 'r+')
-
-	current_value = json.load(f)
-
-	current_value['updated'] = updated
-
-	f.seek(0)
-	f.truncate(0)
-	json.dump(current_value, f)
-	f.close()
+	meta('updated', updated)
 
 	if parent_commit == head_commit:
 		branch_treeish = head_commit
