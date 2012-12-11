@@ -2,7 +2,7 @@
 
 Git command to automate many common tasks involving pull requests.
 
-Based on scripts by Connor McKay<connor.mckay@liferay.com>, Andreas Gohr <andi@splitbrain.org>, Minhchau Dang<minhchau.dang@liferay.com> and Nate Cavanaugh<nathan.cavanaugh@liferay.com>.
+Based on scripts by [Connor McKay](connor.mckay@liferay.com), [Andreas Gohr](andi@splitbrain.org), [Minhchau Dang](minhchau.dang@liferay.com) and [Nate Cavanaugh](nathan.cavanaugh@liferay.com).
 
 ## Install
 
