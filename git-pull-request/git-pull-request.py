@@ -681,7 +681,7 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 		open_URL(new_pr_url)
 
 	# Transition JIRA
-	transition_jira(pull_title, "Reassign Review Request", pull_request.get('html_url'), "brian.chan")
+	transition_jira(pull_title, "Reassign Review Request", pull_request.get('html_url'), jira_user)
 
 def transition_jira(ticket_id, step, url, assignee):
 	m = re.search("([A-Z]{3,}-\d+)", ticket_id)
@@ -1381,6 +1381,10 @@ def main():
 			os.system("git config --global github.oauth-token %s" % oauth_token)
 		else:
 			raise UserWarning('Could not authenticate you with Github')
+
+	# jira hack
+	global jira_user
+	jira_user = reviewer_repo_name or "brian.chan"
 
 	# get repo name from git config
 	if repo_name is None or repo_name == '':
