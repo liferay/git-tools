@@ -779,7 +779,7 @@ def get_user_email(github_user_info):
 		if email != None and email.endswith('@liferay.com'):
 			email = email[:-12]
 
-			if email.isnumeric():
+			if email.isdigit():
 				email = None
 		else:
 			email = None
