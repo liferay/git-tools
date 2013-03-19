@@ -786,7 +786,7 @@ def command_update_users(filename, url = None, github_users = None, total_pages 
 
 		login = user_info['login']
 
-		github_user_info = github_json_request("%s/%s" % (user_api_url, login), authenticate=False)
+		github_user_info = github_json_request("%s/%s" % (user_api_url, login))
 		email = login
 
 		email = get_user_email(github_user_info)
@@ -827,7 +827,7 @@ def get_user_email(github_user_info):
 		if email != None and email.endswith('@liferay.com'):
 			email = email[:-12]
 
-			if email.isnumeric():
+			if email.isdigit():
 				email = None
 		else:
 			email = None
@@ -1218,37 +1218,44 @@ def meta(key = None, value = None):
 	val = None
 
 	if pull_request_ID is not None:
-		f = open(get_tmp_path('git-pull-request-treeish-%s' % pull_request_ID), 'r+')
+		meta_data_path = get_tmp_path('git-pull-request-treeish-%s' % pull_request_ID)
 
-		current_value = json.load(f)
-		current_obj = current_value
+		try:
+			f = open(meta_data_path, 'r+')
+			current_value = json.load(f)
+			current_obj = current_value
 
-		val = current_value
+			val = current_value
 
-		if key != None:
-			pieces = key.split('.')
+			if key != None:
+				pieces = key.split('.')
 
-			key = pieces.pop()
+				key = pieces.pop()
 
-			for word in pieces:
-				current_obj = current_obj[word]
+				for word in pieces:
+					current_obj = current_obj[word]
 
-			if value == None:
-				if key in current_obj:
-					val = current_obj[key]
-				else:
-					val = ''
+				if value == None:
+					if key in current_obj:
+						val = current_obj[key]
+					else:
+						val = ''
 
-		if value != None:
-			val = value
-			current_obj[key] = value
-			f.seek(0)
-			f.truncate(0)
-			json.dump(current_value, f)
+			if value != None:
+				val = value
+				current_obj[key] = value
+				f.seek(0)
+				f.truncate(0)
+				json.dump(current_value, f)
 
-		f.close()
+			f.close()
 
-	return val
+			return val
+
+		except Exception, e:
+			log("Could not update '%s' with '%s'" % (key, value))
+
+
 
 def update_meta():
 	branch_name = get_current_branch_name()
