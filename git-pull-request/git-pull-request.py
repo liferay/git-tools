@@ -662,7 +662,24 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 
 	print color_text("Sending pull request to %s" % reviewer_repo_name, 'status')
 
-	pull_request = github_json_request(url, params)
+	pull_request = None
+
+	try:
+		pull_request = github_json_request(url, params)
+	except Exception, e:
+		msg = e
+
+	if not pull_request:
+		print "Couldn't get a response from github, going to check if the pull was submitted anyways..."
+
+		reviewer_pulls = get_pull_requests(reviewer_repo_name, True)
+
+		for pr in reviewer_pulls:
+			if pr.get('user').get('login') == DEFAULT_USERNAME and pr.get('head').get('ref') == branch_name:
+				pull_request = pr
+
+	if not pull_request:
+		raise msg
 
 	new_pr_url = pull_request.get('html_url')
 
