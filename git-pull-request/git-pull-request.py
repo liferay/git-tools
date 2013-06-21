@@ -117,6 +117,7 @@ import urllib2
 import urlparse
 import getpass
 import tempfile
+import webbrowser
 # import isodate
 # from datetime import date
 
@@ -1471,9 +1472,13 @@ def open_URL(url):
 
 		if ret != 0:
 			os.system('open "%s"' % url)
-
 	elif (os.popen('command -v cygstart').read().strip() != ''):
 		os.system('cygstart "%s"' % url)
+	else:
+		try:
+			webbrowser.open_new_tab(url)
+		except Exception:
+			pass
 
 def post_comment(repo_name, pull_request_ID, comment):
 	url = get_api_url("repos/%s/issues/%s/comments" % (repo_name, pull_request_ID))
