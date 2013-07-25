@@ -364,7 +364,7 @@ def command_fetch(repo_name, pull_request_ID, auto_update = False):
 
 	pull_request = get_pull_request(repo_name, pull_request_ID)
 	display_pull_request(pull_request)
-	branch_name = fetch_pull_request(pull_request)
+	branch_name = fetch_pull_request(pull_request, repo_name)
 
 	parent_commit = pull_request['base']['sha']
 	head_commit = pull_request['head']['sha']
@@ -441,7 +441,7 @@ def command_fetch_all(repo_name):
 	pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
 
 	for pull_request in pull_requests:
-		fetch_pull_request(pull_request)
+		fetch_pull_request(pull_request, repo_name)
 		display_pull_request_minimal(pull_request)
 		print
 
@@ -605,7 +605,7 @@ def get_pr_stats(repo_name, pull_request_ID):
 		ret = os.system('git show-ref --verify -q refs/heads/%s' % branch_name)
 
 		if ret != 0:
-			branch_name = fetch_pull_request(pull_request)
+			branch_name = fetch_pull_request(pull_request, repo_name)
 
 			ret = os.system('git show-ref --verify -q refs/heads/%s' % branch_name)
 
@@ -837,7 +837,7 @@ def command_pull(repo_name):
 	pull_request_ID = get_pull_request_ID(branch_name)
 
 	pull_request = get_pull_request(repo_name, pull_request_ID)
-	repo_url = get_repo_url(pull_request)
+	repo_url = get_repo_url(pull_request, repo_name)
 
 	print color_text("Pulling from %s (%s)" % (repo_url, pull_request['head']['ref']), 'status')
 
@@ -931,14 +931,15 @@ def display_status():
 	print out
 	return out
 
-def fetch_pull_request(pull_request):
+def fetch_pull_request(pull_request, repo_name):
 	"""Fetches a pull request into a local branch, and returns the name of the
 	local branch"""
 
 	branch_name = build_branch_name(pull_request)
-	repo_url = get_repo_url(pull_request)
+	repo_url = get_repo_url(pull_request, repo_name)
 
-	remote_branch_name = pull_request['head']['ref']
+	# remote_branch_name = pull_request['head']['ref']
+	remote_branch_name = 'refs/pull/%s/head' % pull_request['number']
 
 	ret = os.system('git fetch %s "%s":%s' % (repo_url, remote_branch_name, branch_name))
 
@@ -1067,16 +1068,25 @@ def get_repo_name_for_remote(remote_name):
 	if m is not None and m.group(1) != '':
 		return m.group(1)
 
-def get_repo_url(pull_request):
+def get_repo_url(pull_request, repo_name):
 	"""Returns the git URL of the repository the pull request originated from"""
-
-	repo_url = pull_request['head']['repo']['html_url'].replace('https', 'git')
-	private_repo = pull_request['head']['repo']['private']
-
-	if private_repo:
-		repo_url = pull_request['head']['repo']['ssh_url']
+	repo_url = 'git@github.com:%s.git' % repo_name
 
 	return repo_url
+
+	# if auth_username == DEFAULT_USERNAME:
+	# 	log(repo_name)
+	# 	repo_url = os.popen('git config remote.origin.url').read().strip()
+	# 	# repo_url = os.popen('git config remote.url').read().strip()
+	# else:
+	# 	repo_url = os.popen('git config remote.origin.url').read().strip()
+	# 	# repo_url = pull_request['head']['repo']['html_url'].replace('https', 'git')
+	# 	# private_repo = pull_request['head']['repo']['private']
+
+	# 	# if private_repo:
+	# 	# 	repo_url = pull_request['head']['repo']['ssh_url']
+
+	# return repo_url
 
 def get_api_url(command):
 	return URL_BASE % command
