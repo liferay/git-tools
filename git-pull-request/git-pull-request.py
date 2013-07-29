@@ -169,6 +169,11 @@ options = {
 	# them.
 	'merge-auto-close': True,
 
+	# A string to be used to append to the end of each result of the stats command.
+	# It's passed the merge_base SHA, the branch name of the fetched pull
+	# Example: 'Diff: {merge_base}..{branch_name}'
+	'stats-footer': None,
+
 	# Sets the branch to use where updates are merged from or to.
 	'update-branch': 'master',
 
@@ -614,6 +619,13 @@ def get_pr_stats(repo_name, pull_request_ID):
 
 		merge_base = os.popen('git merge-base %s %s' % (options['update-branch'], branch_name)).read().strip()
 		ret = os.system("git --no-pager diff --shortstat {0}..{1} && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | cut -f 3- | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name))
+
+		stats_footer = options['stats-footer']
+
+		if stats_footer:
+			print
+			print stats_footer.format(merge_base=merge_base[0:8], branch_name=branch_name)
+
 		print
 	else:
 		pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
