@@ -701,6 +701,20 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 	# Transition JIRA
 	transition_jira(pull_title, "Reassign Review Request", pull_request.get('html_url'), jira_user)
 
+
+def command_transition_jira(repo_name, pull_request_ID=None, step="Reassign Review Request", url="", assignee=None):
+	if pull_request_ID is None:
+		branch_name = get_current_branch_name()
+		pull_request_ID = get_pull_request_ID(branch_name)
+
+	pull_request = get_pull_request(repo_name, pull_request_ID)
+
+	if assignee is None:
+		assignee = jira_user
+
+	transition_jira(build_branch_name(pull_request), step, url, assignee)
+
+
 def transition_jira(ticket_id, step, url, assignee):
 	m = re.search("([A-Z]{3,}-\d+)", ticket_id)
 
@@ -1286,7 +1300,7 @@ def meta(key = None, value = None):
 
 
 def update_meta():
-	branch_name = get_current_branch_name()
+	branch_name = get_current_branch_name(False)
 	update_branch_option = options['update-branch']
 	parent_commit = os.popen('git merge-base %s %s' % (update_branch_option, branch_name)).read().strip()[0:10]
 	head_commit = os.popen('git rev-parse HEAD').read().strip()[0:10]
@@ -1504,6 +1518,8 @@ def main():
 				command_update(repo_name, options['update-branch'])
 		elif command == 'update-users':
 			command_update_users(users_alias_file)
+		elif command == 'transition-jira':
+			command_transition_jira(repo_name, *args[1:])
 		elif command == 'show-alias':
 			if arg_length >= 2:
 				command_show_alias(args[1])
