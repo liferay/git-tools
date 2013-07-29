@@ -618,7 +618,16 @@ def get_pr_stats(repo_name, pull_request_ID):
 				raise UserWarning("Fetch failed")
 
 		merge_base = os.popen('git merge-base %s %s' % (options['update-branch'], branch_name)).read().strip()
-		ret = os.system("git --no-pager diff --shortstat {0}..{1} && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | cut -f 3- | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name))
+
+		shortstat = os.popen('git --no-pager diff --shortstat {0}..{1}'.format(merge_base, branch_name)).read().strip()
+		stats_arr = shortstat.split(' ')
+		dels = 0
+		if len(stats_arr) > 5:
+			dels = int(stats_arr[5])
+
+		stats = (int(stats_arr[3]) + dels) / int(stats_arr[0])
+
+		ret = os.system("echo '{2}, Average {3} change(s) per file' && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | cut -f 3- | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name, shortstat, stats))
 
 		stats_footer = options['stats-footer']
 
