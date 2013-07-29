@@ -169,6 +169,11 @@ options = {
 	# them.
 	'merge-auto-close': True,
 
+	# A string to be used to append to the end of each result of the stats command.
+	# It's passed the merge_base SHA, the branch name of the fetched pull
+	# Example: 'Diff: {merge_base}..{branch_name}'
+	'stats-footer': None,
+
 	# Sets the branch to use where updates are merged from or to.
 	'update-branch': 'master',
 
@@ -613,7 +618,23 @@ def get_pr_stats(repo_name, pull_request_ID):
 				raise UserWarning("Fetch failed")
 
 		merge_base = os.popen('git merge-base %s %s' % (options['update-branch'], branch_name)).read().strip()
-		ret = os.system("git --no-pager diff --shortstat {0}..{1} && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | cut -f 3- | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name))
+
+		shortstat = os.popen('git --no-pager diff --shortstat {0}..{1}'.format(merge_base, branch_name)).read().strip()
+		stats_arr = shortstat.split(' ')
+		dels = 0
+		if len(stats_arr) > 5:
+			dels = int(stats_arr[5])
+
+		stats = (int(stats_arr[3]) + dels) / int(stats_arr[0])
+
+		ret = os.system("echo '{2}, Average {3} change(s) per file' && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | cut -f 3- | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name, shortstat, stats))
+
+		stats_footer = options['stats-footer']
+
+		if stats_footer:
+			print
+			print stats_footer.format(merge_base=merge_base[0:8], branch_name=branch_name)
+
 		print
 	else:
 		pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
@@ -1000,7 +1021,6 @@ def fetch_pull_request(pull_request, repo_name):
 	branch_name = build_branch_name(pull_request)
 	repo_url = get_repo_url(pull_request, repo_name)
 
-	# remote_branch_name = pull_request['head']['ref']
 	remote_branch_name = 'refs/pull/%s/head' % pull_request['number']
 
 	ret = os.system('git fetch %s "%s":%s' % (repo_url, remote_branch_name, branch_name))
@@ -1132,23 +1152,10 @@ def get_repo_name_for_remote(remote_name):
 
 def get_repo_url(pull_request, repo_name):
 	"""Returns the git URL of the repository the pull request originated from"""
+
 	repo_url = 'git@github.com:%s.git' % repo_name
 
 	return repo_url
-
-	# if auth_username == DEFAULT_USERNAME:
-	# 	log(repo_name)
-	# 	repo_url = os.popen('git config remote.origin.url').read().strip()
-	# 	# repo_url = os.popen('git config remote.url').read().strip()
-	# else:
-	# 	repo_url = os.popen('git config remote.origin.url').read().strip()
-	# 	# repo_url = pull_request['head']['repo']['html_url'].replace('https', 'git')
-	# 	# private_repo = pull_request['head']['repo']['private']
-
-	# 	# if private_repo:
-	# 	# 	repo_url = pull_request['head']['repo']['ssh_url']
-
-	# return repo_url
 
 def get_api_url(command):
 	return URL_BASE % command
