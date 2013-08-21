@@ -147,6 +147,10 @@ options = {
 	'color-display-info-repo-count': 'magenta',
 	'color-display-info-total-title': 'green',
 	'color-display-info-total-count': 'magenta',
+	'color-stats-added': 'yellow',
+	'color-stats-average-change': 'magenta',
+	'color-stats-deleted': 'red',
+	'color-stats-total': 'blue',
 
 	# Disable the color scheme
 	'enable-color': True,
@@ -170,8 +174,14 @@ options = {
 	'merge-auto-close': True,
 
 	# A string to be used to append to the end of each result of the stats command.
-	# It's passed the merge_base SHA, the branch name of the fetched pull
-	# Example: 'Diff: {merge_base}..{branch_name}'
+	# It's passed the merge_base SHA, the branch name of the fetched pull, as well as
+	# a list of the committers that contributed to the pull.
+	# Example: 'Diff: {merge_base}..{branch_name}, {NEWLINE}Committers: {committers}'
+	#
+	# If the string starts with the ` character, then the script will treat the rest
+	# of the string as a shell script. However, the merge_base, branch_name and committers
+	# are still substituted in, allowing you to send them to another script in any order
+	# Example: '`git log --oneline {merge_base}..{branch_name} && echo "{committers}"'
 	'stats-footer': None,
 
 	# Sets the branch to use where updates are merged from or to.
@@ -620,21 +630,49 @@ def get_pr_stats(repo_name, pull_request_ID):
 		merge_base = os.popen('git merge-base %s %s' % (options['update-branch'], branch_name)).read().strip()
 
 		shortstat = os.popen('git --no-pager diff --shortstat {0}..{1}'.format(merge_base, branch_name)).read().strip()
+		stat_fragments = shortstat.split(', ')
 		stats_arr = shortstat.split(' ')
+
+		has_color = False
+		for index, frag in enumerate(stat_fragments):
+			color_type = None
+			if 'changed' in frag:
+				color_type = 'total'
+			elif 'insertions' in frag:
+				color_type = 'added'
+			elif 'deletions' in frag:
+				color_type = 'deleted'
+
+			if color_type:
+				has_color = True
+				stat_fragments[index] = color_text(frag, 'stats-%s' % color_type)
+
+		if has_color:
+			shortstat = ', '.join(stat_fragments)
+
 		dels = 0
 		if len(stats_arr) > 5:
 			dels = int(stats_arr[5])
 
 		stats = (int(stats_arr[3]) + dels) / int(stats_arr[0])
 
-		ret = os.system("echo '{2}, Average {3} change(s) per file' && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | cut -f 3- | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name, shortstat, stats))
+		stats = color_text('Average %d change(s) per file' % stats, 'stats-average-change')
+
+		ret = os.system("echo '{2}, {3}' && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | cut -f 3- | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name, shortstat, stats))
 
 		stats_footer = options['stats-footer']
 
 		if stats_footer:
+			committers = os.popen("git log {0}..{1} --pretty='%an' --reverse | awk ' !x[$0]++'".format(merge_base, branch_name)).read().strip()
+			committers = committers.split(os.linesep)
+			committers = ', '.join(committers)
 			print
-			print stats_footer.format(merge_base=merge_base[0:8], branch_name=branch_name)
-
+			footer_result = stats_footer.format(merge_base=merge_base[0:8], branch_name=branch_name, committers=committers, NEWLINE=os.linesep)
+			if stats_footer.startswith('`'):
+				os.system(footer_result[1:])
+			else:
+				print footer_result
+			# log(stats_footer)
 		print
 	else:
 		pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
