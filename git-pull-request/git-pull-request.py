@@ -1005,7 +1005,18 @@ def fetch_pull_request(pull_request, repo_name):
 		ret = os.system('git show-ref --verify refs/heads/%s' % branch_name)
 
 	if ret != 0:
-		raise UserWarning("Fetch failed")
+		print "Could not get from refs/pull/%s/head, trying to brute force the fetch" % pull_request['number']
+
+		repo_url = get_repo_url(pull_request, repo_name, True)
+		remote_branch_name = pull_request['head']['ref']
+
+		ret = os.system('git fetch %s "%s":%s' % (repo_url, remote_branch_name, branch_name))
+
+		if ret != 0:
+			ret = os.system('git show-ref --verify refs/heads/%s' % branch_name)
+
+		if ret != 0:
+			raise UserWarning("Fetch failed")
 
 	try:
 		os.remove(get_tmp_path('git-pull-request-treeish-%s' % pull_request['number']))
@@ -1126,10 +1137,17 @@ def get_repo_name_for_remote(remote_name):
 	if m is not None and m.group(1) != '':
 		return m.group(1)
 
-def get_repo_url(pull_request, repo_name):
+def get_repo_url(pull_request, repo_name, force = False):
 	"""Returns the git URL of the repository the pull request originated from"""
 
-	repo_url = 'git@github.com:%s.git' % repo_name
+	if force is False:
+		repo_url = 'git@github.com:%s.git' % repo_name
+	else:
+		repo_url = pull_request['head']['repo']['html_url'].replace('https', 'git')
+		private_repo = pull_request['head']['repo']['private']
+
+		if private_repo:
+			repo_url = pull_request['head']['repo']['ssh_url']
 
 	return repo_url
 
