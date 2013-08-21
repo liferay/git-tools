@@ -758,24 +758,30 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 		open_URL(new_pr_url)
 
 	# Transition JIRA
-	transition_jira(pull_title, "Reassign Review Request", pull_request.get('html_url'), jira_user)
+	transition_jira(pull_title, "Reassign Review Request", jira_user, pull_request.get('html_url'))
 
 
-def command_transition_jira(repo_name, pull_request_ID=None, step="Reassign Review Request", url="", assignee=None):
-	if pull_request_ID is None:
+def command_transition_jira(repo_name, pull_request_ID=None, step="Reassign Review Request", assignee=None, url=""):
+	ticket_id = None
+
+	if not pull_request_ID:
 		branch_name = get_current_branch_name()
 		pull_request_ID = get_pull_request_ID(branch_name)
+	elif re.match('([A-Z]{3,}-\d+)', pull_request_ID):
+		ticket_id = pull_request_ID
 
-	pull_request = get_pull_request(repo_name, pull_request_ID)
+	if not ticket_id and pull_request_ID.isdigit():
+		pull_request = get_pull_request(repo_name, pull_request_ID)
+		ticket_id = build_branch_name(pull_request)
 
 	if assignee is None:
 		assignee = jira_user
 
-	transition_jira(build_branch_name(pull_request), step, url, assignee)
+	transition_jira(ticket_id, step, assignee, url)
 
 
-def transition_jira(ticket_id, step, url, assignee):
-	m = re.search("([A-Z]{3,}-\d+)", ticket_id)
+def transition_jira(ticket_id, step, assignee, url):
+	m = re.search('([A-Z]{3,}-\d+)', ticket_id)
 
 	if m is not None and m.group(1) != '':
 		ticket_id = m.group(1)
@@ -786,7 +792,13 @@ def transition_jira(ticket_id, step, url, assignee):
 		if assignee and '/' in assignee:
 			assignee = assignee.split('/')[0]
 		log(step)
-		ret = os.system('jira -a progressIssue --issue %s --step "%s" --assignee "%s" --field "customfield_10421" --values "%s"' % (ticket_id, step, assignee, url))
+
+		jira_command = 'jira -a progressIssue --issue %s --step "%s" --assignee "%s"'
+
+		if url:
+			jira_command += (' --field "customfield_10421" --values "%s"' % url)
+
+		ret = os.system(jira_command % (ticket_id, step, assignee))
 
 		if ret != 0:
 			available_steps = os.popen('jira -a getAvailableSteps --issue %s' % ticket_id).read().strip()
@@ -812,7 +824,8 @@ def transition_jira(ticket_id, step, url, assignee):
 							steps_map[pieces[0].strip()] = pieces[1].strip()
 
 						if chosen_step in steps_map:
-							transition_jira(ticket_id, steps_map[chosen_step], url, assignee)
+							log('logging steps map', steps_map[chosen_step], chosen_step)
+							transition_jira(ticket_id, steps_map[chosen_step], assignee, url)
 						else:
 							print color_text('The choice, %s, is not valid' % chosen_step, 'error')
 					else:
