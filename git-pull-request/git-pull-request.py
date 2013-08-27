@@ -821,7 +821,7 @@ def transition_jira(ticket_id, step, assignee, url):
 
 						for step in steps:
 							pieces = step.split(',')
-							steps_map[pieces[0].strip()] = pieces[1].strip()
+							steps_map[pieces[0].strip()] = pieces[1].strip().replace('"', '')
 
 						if chosen_step in steps_map:
 							log('logging steps map', steps_map[chosen_step], chosen_step)
