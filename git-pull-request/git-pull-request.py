@@ -131,6 +131,7 @@ import webbrowser
 #socket.socket = socks.socksocket
 
 from textwrap import fill
+from string import Template
 
 options = {
 	'debug-mode': False,
@@ -667,12 +668,32 @@ def get_pr_stats(repo_name, pull_request_ID):
 			committers = committers.split(os.linesep)
 			committers = ', '.join(committers)
 			print
-			footer_result = stats_footer.format(merge_base=merge_base[0:8], branch_name=branch_name, committers=committers, NEWLINE=os.linesep)
+
+			fn = False
+
 			if stats_footer.startswith('`'):
-				os.system(footer_result[1:])
+				stats_footer = stats_footer[1:]
+				fn = True
+
+			footer_tpl = Template(stats_footer)
+
+			pr_obj = pull_request.copy()
+			pr_obj.update(
+				{
+					'merge_base': merge_base[0:8],
+					'branch_name': branch_name,
+					'committers': committers,
+					'NEWLINE': os.linesep
+				}
+			)
+
+			footer_result = footer_tpl.safe_substitute(**pr_obj)
+
+			if fn:
+				os.system(footer_result)
 			else:
 				print footer_result
-			# log(stats_footer)
+
 		print
 	else:
 		pull_requests = get_pull_requests(repo_name, options['filter-by-update-branch'])
