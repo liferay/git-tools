@@ -677,6 +677,8 @@ def get_pr_stats(repo_name, pull_request_ID):
 
 			footer_tpl = Template(stats_footer)
 
+			committers = committers.decode('utf-8')
+
 			pr_obj = pull_request.copy()
 			pr_obj.update(
 				{
@@ -690,7 +692,7 @@ def get_pr_stats(repo_name, pull_request_ID):
 			footer_result = footer_tpl.safe_substitute(**pr_obj)
 
 			if fn:
-				os.system(footer_result)
+				os.system(footer_result.encode('utf-8'))
 			else:
 				print footer_result
 
