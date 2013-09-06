@@ -986,7 +986,9 @@ def display_pull_request(pull_request):
 	display_pull_request_minimal(pull_request)
 	print "	%s" % color_text(pull_request.get('html_url'), 'display-title-url')
 
-	if pull_request.get('body').strip():
+	pr_body = pull_request.get('body')
+
+	if pr_body and pr_body.strip():
 		print fill(pull_request.get('body'), initial_indent="	", subsequent_indent="	", width=80)
 
 	# print "   Created: %s" % date.strftime(isodate.parse_datetime( pull_request.get('issue_created_at')), "%B %d, %Y at %I:%M %p")
