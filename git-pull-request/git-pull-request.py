@@ -226,12 +226,15 @@ def build_branch_name(pull_request):
 
 	request_id = pull_request['number']
 
-	m = re.search("[A-Z]{3,}-\d+", ref)
-
 	branch_name = 'pull-request-%s' % request_id
 
-	if m != None and m.group(0) != '':
-		branch_name = '%s-%s' % (branch_name, m.group(0))
+	jira_ticket = get_jira_ticket(ref)
+
+	if not jira_ticket:
+		jira_ticket = get_jira_ticket(pull_request['title'])
+
+	if jira_ticket:
+		branch_name = '%s-%s' % (branch_name, jira_ticket)
 
 	return branch_name
 
@@ -239,12 +242,23 @@ def build_pull_request_title(branch_name):
 	"""Returns the default title to use for a pull request for the branch with
 	the name"""
 
-	m = re.search("([A-Z]{3,}-\d+)", branch_name)
+	jira_ticket = get_jira_ticket(branch_name)
 
-	if m is not None and m.group(1) != '':
-		return m.group(1)
+	if jira_ticket:
+		branch_name = jira_ticket
 
 	return branch_name
+
+def get_jira_ticket(text):
+	"""Returns a JIRA ticket id from the passed text, or a blank string otherwise"""
+	m = re.search("[A-Z]{3,}-\d+", text)
+
+	jira_ticket = ''
+
+	if m != None and m.group(0) != '':
+		jira_ticket = m.group(0)
+
+	return jira_ticket
 
 def chdir(dir):
 	f = open(get_tmp_path('git-pull-request-chdir'), 'wb')
