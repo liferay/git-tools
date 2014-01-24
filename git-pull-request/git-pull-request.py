@@ -935,9 +935,13 @@ def command_pull(repo_name):
 	pull_request = get_pull_request(repo_name, pull_request_ID)
 	repo_url = get_repo_url(pull_request, repo_name)
 
+	branch_name = build_branch_name(pull_request)
+	remote_branch_name = 'refs/pull/%s/head' % pull_request['number']
+
 	print color_text("Pulling from %s (%s)" % (repo_url, pull_request['head']['ref']), 'status')
 
-	ret = os.system('git pull %s %s' % (repo_url, pull_request['head']['ref']))
+	ret = os.system('git pull %s %s' % (repo_url, remote_branch_name))
+
 	if ret != 0:
 		raise UserWarning("Pull failed, resolve conflicts")
 
