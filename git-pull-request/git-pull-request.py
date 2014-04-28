@@ -1283,7 +1283,7 @@ def load_users(filename):
 	try:
 		github_users_file = open(filename, 'r')
 	except IOError:
-		print "File %s could not be found. Using email names will not be available. Run the update-users command to enable this funcionality" % filename
+		print "File %s could not be found. Using email names will not be available. Run the update-users command to enable this functionality" % filename
 		return {}
 
 	github_users = json.load(github_users_file)
