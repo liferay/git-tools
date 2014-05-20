@@ -795,10 +795,10 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 		open_URL(new_pr_url)
 
 	# Transition JIRA
-	transition_jira(pull_title, "Reassign Review Request", jira_user, pull_request.get('html_url'))
+	transition_jira(pull_title, "Code Review Request", jira_user, pull_request.get('html_url'))
 
 
-def command_transition_jira(repo_name, pull_request_ID=None, step="Reassign Review Request", assignee=None, url=""):
+def command_transition_jira(repo_name, pull_request_ID=None, step="Code Review Request", assignee=None, url=""):
 	ticket_id = None
 
 	if not pull_request_ID:
