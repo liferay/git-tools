@@ -121,6 +121,12 @@ import webbrowser
 # import isodate
 # from datetime import date
 
+import codecs
+import sys
+
+UTF8Writer = codecs.getwriter('utf8')
+sys.stdout = UTF8Writer(sys.stdout)
+
 # Connecting through a proxy,
 # requires: socks.py from http://socksipy.sourceforge.net/ next to this file
 
