@@ -363,7 +363,7 @@ def color_text(text, token, bold = False):
 	if options['enable-color'] == True:
 		color_name = options["color-%s" % token]
 
-		if color_name == 'default' or not sys.stdout.isatty():
+		if color_name == 'default' or (not FORCE_COLOR and not sys.stdout.isatty()):
 			return text
 
 		colors = (
@@ -1374,7 +1374,7 @@ def update_meta():
 def main():
 	# parse command line options
 	try:
-		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqar:u:l:b:', ['help', 'quiet', 'all', 'repo=', 'reviewer=', 'update', 'no-update', 'user=', 'update-branch=', 'authenticate', 'debug'])
+		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqar:u:l:b:', ['help', 'quiet', 'all', 'repo=', 'reviewer=', 'update', 'no-update', 'user=', 'update-branch=', 'authenticate', 'debug', 'force-color'])
 	except getopt.GetoptError, e:
 		raise UserWarning("%s\nFor help use --help" % e)
 
@@ -1393,10 +1393,11 @@ def main():
 
 	global users, DEFAULT_USERNAME
 	global _work_dir
-	global DEBUG
+	global DEBUG, FORCE_COLOR
 	global auth_username, auth_token
 
 	DEBUG = options['debug-mode']
+	FORCE_COLOR = False
 
 	_work_dir = None
 
@@ -1449,6 +1450,8 @@ def main():
 			auth_token = ''
 		elif o == '--debug':
 			DEBUG = True
+		elif o == '--force-color':
+			FORCE_COLOR = True
 
 	if len(username) == 0:
 		username = raw_input("Github username: ").strip()
