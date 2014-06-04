@@ -679,7 +679,9 @@ def get_pr_stats(repo_name, pull_request_ID):
 
 		stats = color_text('Average %d change(s) per file' % stats, 'stats-average-change')
 
-		ret = os.system("echo '{2}, {3}' && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | cut -f 3- | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name, shortstat, stats))
+		ret = os.popen("echo '{2}, {3}' && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | cut -f 3- | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name, shortstat, stats)).read().strip()
+
+		print ret
 
 		stats_footer = options['stats-footer']
 
@@ -687,7 +689,6 @@ def get_pr_stats(repo_name, pull_request_ID):
 			committers = os.popen("git log {0}..{1} --pretty='%an' --reverse | awk ' !x[$0]++'".format(merge_base, branch_name)).read().strip()
 			committers = committers.split(os.linesep)
 			committers = ', '.join(committers)
-			print
 
 			fn = False
 
@@ -712,9 +713,9 @@ def get_pr_stats(repo_name, pull_request_ID):
 			footer_result = footer_tpl.safe_substitute(**pr_obj)
 
 			if fn:
-				os.system(footer_result.encode('utf-8'))
-			else:
-				print footer_result
+				footer_result = os.popen(footer_result.encode('utf-8')).read().strip().decode('utf-8')
+
+			print footer_result
 
 		print
 	else:
