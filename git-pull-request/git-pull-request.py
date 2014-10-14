@@ -1259,7 +1259,7 @@ def in_work_dir():
 
 	work_dir = get_work_dir()
 
-	return git_base_path == work_dir and os.path.islink(os.path.join(git_base_path, '.git', 'config'))
+	return git_base_path.lower() == work_dir.lower() and os.path.islink(os.path.join(git_base_path, '.git', 'config'))
 
 def load_options():
 	all_config = os.popen('git config -l').read().strip()
