@@ -814,7 +814,7 @@ def command_transition_jira(repo_name, pull_request_ID=None, step="Code Review R
 	elif re.match('([A-Z]{3,}-\d+)', pull_request_ID):
 		ticket_id = pull_request_ID
 
-	if not ticket_id and pull_request_ID.isdigit():
+	if not ticket_id and (type(pull_request_ID) is int or pull_request_ID.isdigit()):
 		pull_request = get_pull_request(repo_name, pull_request_ID)
 		ticket_id = build_branch_name(pull_request)
 
