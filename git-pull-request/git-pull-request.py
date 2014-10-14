@@ -842,12 +842,12 @@ def command_update_users(filename, url = None, github_users = None, total_pages 
 
 	items = github_json_request(url)
 
-	m = re.search('[?&]page=(\d)+', url)
+	m = re.search('[?&]page=(\d+)', url)
 
 	if m is not None and m.group(1) != '':
 		print "Doing another request for page: %s of %s" % (m.group(1), total_pages)
 	else:
-		print "There are %s users, this could take a few minutes..." % len(items)
+		print "There are more than %s users, this could take a few minutes..." % len(items)
 
 	user_api_url = get_api_url("users")
 
