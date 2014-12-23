@@ -499,6 +499,8 @@ def command_info(username, detailed = False):
 
 	url = get_api_url(url)
 
+	url += '?per_page=100'
+
 	repos = github_json_request(url)
 
 	total = 0
