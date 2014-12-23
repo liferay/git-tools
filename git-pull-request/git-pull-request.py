@@ -1049,7 +1049,14 @@ def fetch_pull_request(pull_request, repo_name):
 
 	remote_branch_name = 'refs/pull/%s/head' % pull_request['number']
 
-	ret = os.system('git fetch %s "%s":%s' % (repo_url, remote_branch_name, branch_name))
+	ret = os.system('git show-ref --verify -q refs/heads/%s' % branch_name)
+	# sha = os.popen('git rev-parse --abbrev-ref refs/heads/%s' % branch_name).read().strip()
+
+	# log(pull_request)
+
+	if ret != 0:
+		ret = os.system('git fetch %s "%s":%s' % (repo_url, remote_branch_name, branch_name))
+
 
 	if ret != 0:
 		ret = os.system('git show-ref --verify refs/heads/%s' % branch_name)
