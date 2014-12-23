@@ -121,6 +121,12 @@ import webbrowser
 # import isodate
 # from datetime import date
 
+import codecs
+import sys
+
+UTF8Writer = codecs.getwriter('utf8')
+sys.stdout = UTF8Writer(sys.stdout)
+
 # Connecting through a proxy,
 # requires: socks.py from http://socksipy.sourceforge.net/ next to this file
 
@@ -357,7 +363,7 @@ def color_text(text, token, bold = False):
 	if options['enable-color'] == True:
 		color_name = options["color-%s" % token]
 
-		if color_name == 'default' or not sys.stdout.isatty():
+		if color_name == 'default' or (not FORCE_COLOR and not sys.stdout.isatty()):
 			return text
 
 		colors = (
@@ -492,6 +498,8 @@ def command_info(username, detailed = False):
 		url = "users/%s/repos" % username
 
 	url = get_api_url(url)
+
+	url += '?per_page=100'
 
 	repos = github_json_request(url)
 
@@ -673,7 +681,9 @@ def get_pr_stats(repo_name, pull_request_ID):
 
 		stats = color_text('Average %d change(s) per file' % stats, 'stats-average-change')
 
-		ret = os.system("echo '{2}, {3}' && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | cut -f 3- | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name, shortstat, stats))
+		ret = os.popen("echo '{2}, {3}' && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | cut -f 3- | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(merge_base, branch_name, shortstat, stats)).read().strip()
+
+		print ret
 
 		stats_footer = options['stats-footer']
 
@@ -681,7 +691,6 @@ def get_pr_stats(repo_name, pull_request_ID):
 			committers = os.popen("git log {0}..{1} --pretty='%an' --reverse | awk ' !x[$0]++'".format(merge_base, branch_name)).read().strip()
 			committers = committers.split(os.linesep)
 			committers = ', '.join(committers)
-			print
 
 			fn = False
 
@@ -706,9 +715,9 @@ def get_pr_stats(repo_name, pull_request_ID):
 			footer_result = footer_tpl.safe_substitute(**pr_obj)
 
 			if fn:
-				os.system(footer_result.encode('utf-8'))
-			else:
-				print footer_result
+				footer_result = os.popen(footer_result.encode('utf-8')).read().strip().decode('utf-8')
+
+			print footer_result
 
 		print
 	else:
@@ -910,12 +919,12 @@ def command_update_users(filename, url = None, github_users = None, total_pages 
 
 	items = github_json_request(url)
 
-	m = re.search('[?&]page=(\d)+', url)
+	m = re.search('[?&]page=(\d+)', url)
 
 	if m is not None and m.group(1) != '':
 		print "Doing another request for page: %s of %s" % (m.group(1), total_pages)
 	else:
-		print "There are %s users, this could take a few minutes..." % len(items)
+		print "There are more than %s users, this could take a few minutes..." % len(items)
 
 	user_api_url = get_api_url("users")
 
@@ -1117,7 +1126,14 @@ def fetch_pull_request(pull_request, repo_name):
 
 	remote_branch_name = 'refs/pull/%s/head' % pull_request['number']
 
-	ret = os.system('git fetch %s "%s":%s' % (repo_url, remote_branch_name, branch_name))
+	ret = os.system('git show-ref --verify -q refs/heads/%s' % branch_name)
+	# sha = os.popen('git rev-parse --abbrev-ref refs/heads/%s' % branch_name).read().strip()
+
+	# log(pull_request)
+
+	if ret != 0:
+		ret = os.system('git fetch %s "%s":%s' % (repo_url, remote_branch_name, branch_name))
+
 
 	if ret != 0:
 		ret = os.system('git show-ref --verify refs/heads/%s' % branch_name)
@@ -1327,7 +1343,7 @@ def in_work_dir():
 
 	work_dir = get_work_dir()
 
-	return git_base_path == work_dir and os.path.islink(os.path.join(git_base_path, '.git', 'config'))
+	return isinstance(work_dir, str) and git_base_path.lower() == work_dir.lower() and os.path.islink(os.path.join(git_base_path, '.git', 'config'))
 
 def load_options():
 	all_config = os.popen('git config -l').read().strip()
@@ -1443,7 +1459,7 @@ def update_meta():
 def main():
 	# parse command line options
 	try:
-		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqar:u:l:b:', ['help', 'quiet', 'all', 'repo=', 'reviewer=', 'update', 'no-update', 'user=', 'update-branch=', 'authenticate', 'debug'])
+		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqar:u:l:b:', ['help', 'quiet', 'all', 'repo=', 'reviewer=', 'update', 'no-update', 'user=', 'update-branch=', 'authenticate', 'debug', 'force-color'])
 	except getopt.GetoptError, e:
 		raise UserWarning("%s\nFor help use --help" % e)
 
@@ -1462,10 +1478,11 @@ def main():
 
 	global users, DEFAULT_USERNAME
 	global _work_dir
-	global DEBUG
+	global DEBUG, FORCE_COLOR
 	global auth_username, auth_token
 
 	DEBUG = options['debug-mode']
+	FORCE_COLOR = False
 
 	_work_dir = None
 
@@ -1518,6 +1535,8 @@ def main():
 			auth_token = ''
 		elif o == '--debug':
 			DEBUG = True
+		elif o == '--force-color':
+			FORCE_COLOR = True
 
 	if len(username) == 0:
 		username = raw_input("Github username: ").strip()
