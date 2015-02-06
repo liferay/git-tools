@@ -826,7 +826,7 @@ def command_transition_jira(repo_name, pull_request_ID=None, step="Code Review R
 	transition_jira(ticket_id, step, assignee, url)
 
 
-def transition_jira(ticket_id, step, assignee, url):
+def transition_jira(ticket_id, step=None, assignee=None, url=None):
 	m = re.search('([A-Z]{3,}-\d+)', ticket_id)
 
 	if m is not None and m.group(1) != '':
@@ -837,17 +837,26 @@ def transition_jira(ticket_id, step, assignee, url):
 	if ticket_id:
 		if assignee and '/' in assignee:
 			assignee = assignee.split('/')[0]
-		log(step)
+		# log(step)
 
 		jira_command = 'jira -a progressIssue --issue %s --step "%s" --assignee "%s"'
 
 		if url:
 			jira_command += (' --field "customfield_10421" --values "%s"' % url)
 
-		ret = os.system(jira_command % (ticket_id, step, assignee))
+		ret = 1
+
+		if step is not None:
+			ret = os.system(jira_command % (ticket_id, step, assignee))
 
 		if ret != 0:
 			available_steps = os.popen('jira -a getAvailableSteps --issue %s' % ticket_id).read().strip()
+
+			step_sep = ' - '
+
+			available_steps = re.sub(',', step_sep, available_steps)
+			available_steps = re.sub('"([^"]+)"', r'\1', available_steps)
+
 			print color_text('Could not update ticket -- only these steps available: %s' % available_steps, 'error')
 
 			# 2 available workflow steps for issue: LPS-28166
@@ -855,27 +864,46 @@ def transition_jira(ticket_id, step, assignee, url):
 			# 3,"Reopen Issue"
 			# 2,"Close Issue"
 
-			if available_steps:
+			def request_steps():
 				chosen_step = raw_input("Which step do you wish to take? (none): ").strip()
 
-				if chosen_step:
-					steps = available_steps.split('\n"Id","Name"\n')
+				if chosen_step and chosen_step.lower() != 'none':
+					steps = available_steps.split('\nId%sName\n' % step_sep)
 					steps_map = {}
 
 					if len(steps) > 1:
 						steps = steps[1].split('\n')
 
 						for step in steps:
-							pieces = step.split(',')
-							steps_map[pieces[0].strip()] = pieces[1].strip().replace('"', '')
+							pieces = step.split(step_sep)
+							steps_map[pieces[0].strip()] = pieces[1].strip()
+
+						chosen_step_value = None
+
+						chosen_step_rep = re.sub('[\'"]', '', chosen_step)
 
 						if chosen_step in steps_map:
-							log('logging steps map', steps_map[chosen_step], chosen_step)
+							chosen_step_value = steps_map[chosen_step]
+						elif chosen_step_rep in steps_map:
+							chosen_step_value = steps_map[chosen_step_rep]
+						else:
+							step_vals = [step_val for step_val in steps_map.values() if chosen_step.lower() == step_val.lower() or chosen_step_rep.lower() == step_val.lower()]
+
+							if len(step_vals) > 0:
+								chosen_step_value = step_vals[0]
+
+						if chosen_step_value:
+							print color_text('Attempting to transition with: %s' % (chosen_step_value), 'status')
 							transition_jira(ticket_id, steps_map[chosen_step], assignee, url)
 						else:
 							print color_text('The choice, %s, is not valid' % chosen_step, 'error')
+
+							request_steps()
 					else:
 						print color_text('Could not find any alternative steps', 'error')
+
+			if available_steps:
+				request_steps()
 
 
 def command_update(repo_name, target = None):
@@ -1658,6 +1686,8 @@ def main():
 			command_update_users(users_alias_file)
 		elif command == 'transition-jira':
 			command_transition_jira(repo_name, *args[1:])
+		elif command == 'jira':
+			transition_jira(*args[1:])
 		elif command == 'show-alias':
 			if arg_length >= 2:
 				command_show_alias(args[1])
