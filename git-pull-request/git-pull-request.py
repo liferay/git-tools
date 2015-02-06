@@ -183,13 +183,29 @@ options = {
 	# A string to be used to append to the end of each result of the stats command.
 	# It's passed the merge_base SHA, the branch name of the fetched pull, as well as
 	# a list of the committers that contributed to the pull.
-	# Example: 'Diff: {merge_base}..{branch_name}, {NEWLINE}Committers: {committers}'
+	# Example: 'Diff: ${merge_base}..${branch_name}, ${NEWLINE}Committers: ${committers}'
 	#
 	# If the string starts with the ` character, then the script will treat the rest
 	# of the string as a shell script. However, the merge_base, branch_name and committers
 	# are still substituted in, allowing you to send them to another script in any order
-	# Example: '`git log --oneline {merge_base}..{branch_name} && echo "{committers}"'
+	# Example: '`git log --oneline ${merge_base}..${branch_name} && echo "${committers}"'
 	'stats-footer': None,
+
+	# A string to be used to format the message sent with a submitted pull.
+	# Available variables:
+	# ${merge_base}: SHA of the merge base of this branch
+	# ${branch_name}: the branch name of the current pull
+	# ${committers}: committers on this pull request
+	# ${pull_body}: the pull body passed via the command line
+	# ${reviewer}: the username of the reviewer
+	# ${repo_name}: the name of the repo you're submitting from/to
+	# Example: 'Hi ${reviewer}, I'm sending the commits ${merge_base}..${branch_name}. kthxbye!'
+	#
+	# If the string starts with the ` character, then the script will treat the rest
+	# of the string as a shell script. However, the variables are still substituted in,
+	# allowing you to send them to another script in any order
+	# Example: '`echo "${pull_body}" | tr "[:upper:]" "[:lower:]"'
+	'format-submit-body': None,
 
 	# Sets the branch to use where updates are merged from or to.
 	'update-branch': 'master',
@@ -755,6 +771,45 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 
 	if pull_title == None or pull_title == '':
 		pull_title = build_pull_request_title(branch_name)
+
+	format_submit_body = options['format-submit-body']
+
+	if format_submit_body:
+		merge_base = os.popen('git merge-base %s %s' % (options['update-branch'], branch_name)).read().strip()
+		committers = os.popen("git log {0}..{1} --pretty='%an' --reverse | awk ' !x[$0]++'".format(merge_base, branch_name)).read().strip()
+		committers = committers.split(os.linesep)
+		committers = ', '.join(committers)
+
+		fn = False
+
+		if format_submit_body.startswith('`'):
+			format_submit_body = format_submit_body[1:]
+			fn = True
+
+		pull_body_tpl = Template(format_submit_body)
+
+		committers = committers.decode('utf-8')
+
+		reviewer_repo_pieces = reviewer_repo_name.split('/')
+		reviewer = reviewer_repo_pieces[0]
+
+		variables = {
+			'merge_base': merge_base[0:8],
+			'branch_name': branch_name,
+			'committers': committers,
+			'pull_body': pull_body or '',
+			'reviewer': reviewer,
+			'repo_name': reviewer_repo_pieces[1],
+			'NEWLINE': os.linesep
+		}
+
+		pull_body_result = pull_body_tpl.safe_substitute(**variables)
+
+		if fn:
+			pull_body_result = os.popen(pull_body_result.encode('utf-8')).read().strip().decode('utf-8')
+
+		if pull_body_result:
+			pull_body = pull_body_result
 
 	if pull_body == None:
 		pull_body = ''
