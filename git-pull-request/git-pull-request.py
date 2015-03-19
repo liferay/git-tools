@@ -859,7 +859,7 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 		open_URL(new_pr_url)
 
 	# Transition JIRA
-	transition_jira(pull_title, "Code Review Request", jira_user, pull_request.get('html_url'))
+	transition_jira(pull_title, ["Code Review Request", "Create Review Request", "Reassign Review Request"], jira_user, pull_request.get('html_url'))
 
 
 def command_transition_jira(repo_name, pull_request_ID=None, step="Code Review Request", assignee=None, url=""):
@@ -881,6 +881,63 @@ def command_transition_jira(repo_name, pull_request_ID=None, step="Code Review R
 	transition_jira(ticket_id, step, assignee, url)
 
 
+def get_available_steps(ticket_id):
+	return os.popen('jira -a getAvailableSteps --issue %s' % ticket_id).read().strip()
+
+
+def get_steps_map(available_steps):
+	step_sep = ' - '
+
+	available_steps = re.sub(',', step_sep, available_steps)
+	available_steps = re.sub('"([^"]+)"', r'\1', available_steps)
+
+	steps = available_steps.split('\nId%sName\n' % step_sep)
+
+	steps_map = {}
+
+	if len(steps) > 1:
+		steps = steps[1].split('\n')
+
+		for step in steps:
+			pieces = step.split(step_sep)
+			steps_map[pieces[0].strip()] = pieces[1].strip()
+
+	return steps_map
+
+
+def get_step_value(steps_map, chosen_step):
+	if type(chosen_step) is str and ',' in chosen_step:
+		chosen_step = chosen_step.split(',')
+
+	if type(chosen_step) is list:
+		step_val = None
+
+		for step in chosen_step:
+			step = step.strip()
+			step_val = get_step_value(steps_map, step)
+
+			if step_val is not None:
+				break
+
+		return step_val
+
+	chosen_step_value = None
+
+	chosen_step_rep = re.sub('[\'"]', '', chosen_step)
+
+	if chosen_step in steps_map:
+		chosen_step_value = steps_map[chosen_step]
+	elif chosen_step_rep in steps_map:
+		chosen_step_value = steps_map[chosen_step_rep]
+	else:
+		step_vals = [step_val for step_val in steps_map.values() if chosen_step.lower() == step_val.lower() or chosen_step_rep.lower() == step_val.lower()]
+
+		if len(step_vals) > 0:
+			chosen_step_value = step_vals[0]
+
+	return chosen_step_value
+
+
 def transition_jira(ticket_id, step=None, assignee=None, url=None):
 	m = re.search('([A-Z]{3,}-\d+)', ticket_id)
 
@@ -892,7 +949,13 @@ def transition_jira(ticket_id, step=None, assignee=None, url=None):
 	if ticket_id:
 		if assignee and '/' in assignee:
 			assignee = assignee.split('/')[0]
-		# log(step)
+
+		available_steps = get_available_steps(ticket_id)
+		steps_map = get_steps_map(available_steps)
+
+		get_step_value(steps_map, step)
+
+		step = get_step_value(steps_map, step)
 
 		jira_command = 'jira -a progressIssue --issue %s --step "%s" --assignee "%s"'
 
@@ -905,13 +968,6 @@ def transition_jira(ticket_id, step=None, assignee=None, url=None):
 			ret = os.system(jira_command % (ticket_id, step, assignee))
 
 		if ret != 0:
-			available_steps = os.popen('jira -a getAvailableSteps --issue %s' % ticket_id).read().strip()
-
-			step_sep = ' - '
-
-			available_steps = re.sub(',', step_sep, available_steps)
-			available_steps = re.sub('"([^"]+)"', r'\1', available_steps)
-
 			print color_text('Could not update ticket -- only these steps available: %s' % available_steps, 'error')
 
 			# 2 available workflow steps for issue: LPS-28166
@@ -923,29 +979,10 @@ def transition_jira(ticket_id, step=None, assignee=None, url=None):
 				chosen_step = raw_input("Which step do you wish to take? (none): ").strip()
 
 				if chosen_step and chosen_step.lower() != 'none':
-					steps = available_steps.split('\nId%sName\n' % step_sep)
-					steps_map = {}
+					steps_map = get_steps_map(available_steps)
 
-					if len(steps) > 1:
-						steps = steps[1].split('\n')
-
-						for step in steps:
-							pieces = step.split(step_sep)
-							steps_map[pieces[0].strip()] = pieces[1].strip()
-
-						chosen_step_value = None
-
-						chosen_step_rep = re.sub('[\'"]', '', chosen_step)
-
-						if chosen_step in steps_map:
-							chosen_step_value = steps_map[chosen_step]
-						elif chosen_step_rep in steps_map:
-							chosen_step_value = steps_map[chosen_step_rep]
-						else:
-							step_vals = [step_val for step_val in steps_map.values() if chosen_step.lower() == step_val.lower() or chosen_step_rep.lower() == step_val.lower()]
-
-							if len(step_vals) > 0:
-								chosen_step_value = step_vals[0]
+					if len(steps_map) > 1:
+						chosen_step_value = get_step_value(steps_map, chosen_step)
 
 						if chosen_step_value:
 							print color_text('Attempting to transition with: %s' % (chosen_step_value), 'status')
