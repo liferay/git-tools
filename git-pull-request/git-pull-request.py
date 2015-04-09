@@ -165,6 +165,9 @@ options = {
 	# Sets the default comment to post when closing a pull request.
 	'close-default-comment': None,
 
+	# Set the indent character(s) used to indent the description
+	'description-indent': '	',
+
 	# Set to true to remove the newlines from the description of the pull
 	# (this will format it as it used to)
 	'description-strip-newlines': False,
@@ -1070,7 +1073,10 @@ def display_pull_request(pull_request):
 	"""Nicely display_pull_request info about a given pull request"""
 
 	display_pull_request_minimal(pull_request)
-	print "	%s" % color_text(pull_request.get('html_url'), 'display-title-url')
+
+	description_indent = options['description-indent']
+
+	print "%s%s" % (description_indent, color_text(pull_request.get('html_url'), 'display-title-url'))
 
 	pr_body = pull_request.get('body')
 
@@ -1078,14 +1084,14 @@ def display_pull_request(pull_request):
 		pr_body = re.sub('(<br\s?/?>)', '\n', pr_body.strip())
 
 		if options['description-strip-newlines']:
-			pr_body = fill(pr_body, initial_indent="	", subsequent_indent="	", width=80)
+			pr_body = fill(pr_body, initial_indent=description_indent, subsequent_indent=description_indent, width=80)
 		else:
 			# Normalize newlines
 			pr_body = re.sub('\r?\n', '\n', pr_body)
 
 			pr_body = pr_body.splitlines()
 
-			pr_body = [fill(line.strip(), initial_indent="	", subsequent_indent="	", width=80) for line in pr_body]
+			pr_body = [fill(line.strip(), initial_indent=description_indent, subsequent_indent=description_indent, width=80) for line in pr_body]
 
 			pr_body = '\n'.join(pr_body)
 
