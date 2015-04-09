@@ -165,6 +165,10 @@ options = {
 	# Sets the default comment to post when closing a pull request.
 	'close-default-comment': None,
 
+	# Set to true to remove the newlines from the description of the pull
+	# (this will format it as it used to)
+	'description-strip-newlines': False,
+
 	# Determines whether fetch will automatically checkout the new branch.
 	'fetch-auto-checkout': False,
 
@@ -1071,11 +1075,21 @@ def display_pull_request(pull_request):
 	pr_body = pull_request.get('body')
 
 	if pr_body and pr_body.strip():
-		print fill(pull_request.get('body'), initial_indent="	", subsequent_indent="	", width=80)
+		pr_body = re.sub('(<br\s?/?>)', '\n', pr_body.strip())
 
-	# print "   Created: %s" % date.strftime(isodate.parse_datetime( pull_request.get('issue_created_at')), "%B %d, %Y at %I:%M %p")
-	# print "   Created: %s" % pull_request.get('issue_created_at')
-	# print isodate.parse_datetime( pull_request.get('issue_created_at'), "%Y-%m-%dT%H:%M:%S" )
+		if options['description-strip-newlines']:
+			pr_body = fill(pr_body, initial_indent="	", subsequent_indent="	", width=80)
+		else:
+			# Normalize newlines
+			pr_body = re.sub('\r?\n', '\n', pr_body)
+
+			pr_body = pr_body.splitlines()
+
+			pr_body = [fill(line.strip(), initial_indent="	", subsequent_indent="	", width=80) for line in pr_body]
+
+			pr_body = '\n'.join(pr_body)
+
+		print pr_body
 
 	print
 
