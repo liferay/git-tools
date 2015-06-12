@@ -415,6 +415,16 @@ def command_alias(alias, githubname, filename):
 
 	github_users_file.close()
 
+def command_comment(repo_name, comment = None, pull_request_ID = None):
+	if pull_request_ID is None:
+		branch_name = get_current_branch_name()
+		pull_request_ID = get_pull_request_ID(branch_name)
+
+	if comment is not None and comment != '':
+		post_comment(repo_name, pull_request_ID, comment)
+	else:
+		raise UserWarning('Please include a comment')
+
 def command_fetch(repo_name, pull_request_ID, auto_update = False):
 	"""Fetches a pull request into a local branch"""
 
@@ -1457,6 +1467,11 @@ def update_meta():
 	return branch_treeish
 
 def main():
+	global DEBUG
+	global FORCE_COLOR
+
+	FORCE_COLOR = False
+
 	# parse command line options
 	try:
 		opts, args = getopt.gnu_getopt(sys.argv[1:], 'hqar:u:l:b:', ['help', 'quiet', 'all', 'repo=', 'reviewer=', 'update', 'no-update', 'user=', 'update-branch=', 'authenticate', 'debug', 'force-color'])
@@ -1478,11 +1493,9 @@ def main():
 
 	global users, DEFAULT_USERNAME
 	global _work_dir
-	global DEBUG, FORCE_COLOR
 	global auth_username, auth_token
 
 	DEBUG = options['debug-mode']
-	FORCE_COLOR = False
 
 	_work_dir = None
 
@@ -1655,6 +1668,8 @@ def main():
 		elif command == 'show-alias':
 			if arg_length >= 2:
 				command_show_alias(args[1])
+		elif command == 'comment':
+			command_comment(repo_name, *args[1:])
 		elif command == 'stats' or args[0] == 'stat':
 			pull_request_ID = None
 
