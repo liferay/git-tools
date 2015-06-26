@@ -532,7 +532,7 @@ def command_info(username, detailed = False):
 
 	url = get_api_url(url)
 
-	url += '?per_page=100'
+	url += '?per_page=100&type=owner'
 
 	repos = github_json_request(url)
 
