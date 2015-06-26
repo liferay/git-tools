@@ -1324,6 +1324,8 @@ def github_request(url, params = None, authenticate = True):
 	if DEBUG:
 		print url
 
+	req.add_header('Accept', 'application/vnd.github.v3+json')
+
 	try:
 		response = urllib2.urlopen(req)
 	except urllib2.URLError, msg:
