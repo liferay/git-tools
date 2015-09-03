@@ -970,7 +970,7 @@ def get_user_email(github_user_info):
 			email = None
 
 	if email == None:
-		if 'name' in github_user_info and ' ' in github_user_info['name']:
+		if 'name' in github_user_info and github_user_info['name'] != None and ' ' in github_user_info['name']:
 			email = github_user_info['name'].lower()
 			email = email.replace(' ', '.')
 			email = email.replace('(', '.')
