@@ -1179,7 +1179,7 @@ def get_current_branch_name(ensure_pull_request = True):
 	return branch_name
 
 def get_default_repo_name():
-	repo_name = os.popen('git config github.repo').read().strip()
+	repo_name = os.popen('git config github.repo').read().strip().lower()
 
 	# get repo name from origin
 	if repo_name is None or repo_name == '':
@@ -1504,7 +1504,7 @@ def main():
 	repo_name = None
 	reviewer_repo_name = None
 
-	username = os.popen('git config github.user').read().strip()
+	username = os.popen('git config github.user').read().strip().lower()
 
 	auth_token = os.popen('git config github.oauth-token').read().strip()
 
@@ -1533,14 +1533,14 @@ def main():
 			options['filter-by-update-branch'] = False
 		elif o in ('-r', '--repo'):
 			if re.search('/', a):
-				repo_name = a
+				repo_name = a.lower()
 			else:
-				repo_name = get_repo_name_for_remote(a)
+				repo_name = get_repo_name_for_remote(a).lower()
 		elif o in ('-b', '--update-branch'):
 			options['update-branch'] = a
 		elif o in ('-u', '--user', '--reviewer'):
-			reviewer_repo_name = a
-			info_user = lookup_alias(a)
+			reviewer_repo_name = a.lower()
+			info_user = lookup_alias(a).lower()
 		elif o == '--update':
 			fetch_auto_update = True
 		elif o == '--no-update':
@@ -1586,13 +1586,13 @@ def main():
 
 	# get repo name from git config
 	if repo_name is None or repo_name == '':
-		repo_name = get_default_repo_name()
+		repo_name = get_default_repo_name().lower()
 
 	if (not reviewer_repo_name) and (command == 'submit'):
-		reviewer_repo_name = os.popen('git config github.reviewer').read().strip()
+		reviewer_repo_name = os.popen('git config github.reviewer').read().strip().lower()
 
 	if reviewer_repo_name:
-		reviewer_repo_name = lookup_alias(reviewer_repo_name)
+		reviewer_repo_name = lookup_alias(reviewer_repo_name).lower()
 
 		if command != "submit":
 			repo_name = reviewer_repo_name + '/' + repo_name.split('/')[1]
