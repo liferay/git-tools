@@ -828,9 +828,19 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 		if pull_body_result:
 			pull_body = pull_body_result
 
-	if pull_body == None:
-		pull_body = ''
+	default_jira_issue = get_jira_ticket(branch_name)
 
+	if pull_body == None:
+		pull_body = "Jira Issue: " + default_jira_issue
+	elif type(pull_body) is list:
+		pull_body = ""
+	else:
+		jira_ticket = get_jira_ticket(pull_body)
+
+		if jira_ticket:
+			pull_body = "Jira Issue: " + get_jira_issue(jira_ticket) + "<br>" + pull_body
+		else:
+			pull_body = "Jira Issue: " + get_jira_issue(default_jira_issue) + "<br>" + pull_body
 	params = {
 		'base': options['update-branch'],
 		'head': "%s:%s" % (username, branch_name),
@@ -964,6 +974,9 @@ def command_update_users(filename, url = None, github_users = None, total_pages 
 	github_users_file.close()
 
 	return github_users
+
+def get_jira_issue(jira_ticket):
+	return "[{}](https://issues.liferay.com/browse/{})".format(jira_ticket, jira_ticket)
 
 def get_user_email(github_user_info):
 	email = None
