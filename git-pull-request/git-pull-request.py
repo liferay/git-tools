@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 """
 Git command to automate many common tasks involving pull requests.
@@ -828,9 +828,19 @@ def command_submit(repo_name, username, reviewer_repo_name = None, pull_body = N
 		if pull_body_result:
 			pull_body = pull_body_result
 
-	if pull_body == None:
-		pull_body = ''
+	default_jira_issue = get_jira_ticket(branch_name)
 
+	if pull_body == None:
+		pull_body = "Jira Issue: " + default_jira_issue
+	elif type(pull_body) is list:
+		pull_body = ""
+	else:
+		jira_ticket = get_jira_ticket(pull_body)
+
+		if jira_ticket:
+			pull_body = "Jira Issue: " + get_jira_issue(jira_ticket) + "<br>" + pull_body
+		else:
+			pull_body = "Jira Issue: " + get_jira_issue(default_jira_issue) + "<br>" + pull_body
 	params = {
 		'base': options['update-branch'],
 		'head': "%s:%s" % (username, branch_name),
@@ -964,6 +974,9 @@ def command_update_users(filename, url = None, github_users = None, total_pages 
 	github_users_file.close()
 
 	return github_users
+
+def get_jira_issue(jira_ticket):
+	return "[{}](https://issues.liferay.com/browse/{})".format(jira_ticket, jira_ticket)
 
 def get_user_email(github_user_info):
 	email = None
@@ -1179,7 +1192,7 @@ def get_current_branch_name(ensure_pull_request = True):
 	return branch_name
 
 def get_default_repo_name():
-	repo_name = os.popen('git config github.repo').read().strip()
+	repo_name = os.popen('git config github.repo').read().strip().lower()
 
 	# get repo name from origin
 	if repo_name is None or repo_name == '':
@@ -1504,7 +1517,7 @@ def main():
 	repo_name = None
 	reviewer_repo_name = None
 
-	username = os.popen('git config github.user').read().strip()
+	username = os.popen('git config github.user').read().strip().lower()
 
 	auth_token = os.popen('git config github.oauth-token').read().strip()
 
@@ -1533,14 +1546,14 @@ def main():
 			options['filter-by-update-branch'] = False
 		elif o in ('-r', '--repo'):
 			if re.search('/', a):
-				repo_name = a
+				repo_name = a.lower()
 			else:
-				repo_name = get_repo_name_for_remote(a)
+				repo_name = get_repo_name_for_remote(a).lower()
 		elif o in ('-b', '--update-branch'):
 			options['update-branch'] = a
 		elif o in ('-u', '--user', '--reviewer'):
-			reviewer_repo_name = a
-			info_user = lookup_alias(a)
+			reviewer_repo_name = a.lower()
+			info_user = lookup_alias(a).lower()
 		elif o == '--update':
 			fetch_auto_update = True
 		elif o == '--no-update':
@@ -1586,13 +1599,13 @@ def main():
 
 	# get repo name from git config
 	if repo_name is None or repo_name == '':
-		repo_name = get_default_repo_name()
+		repo_name = get_default_repo_name().lower()
 
 	if (not reviewer_repo_name) and (command == 'submit'):
-		reviewer_repo_name = os.popen('git config github.reviewer').read().strip()
+		reviewer_repo_name = os.popen('git config github.reviewer').read().strip().lower()
 
 	if reviewer_repo_name:
-		reviewer_repo_name = lookup_alias(reviewer_repo_name)
+		reviewer_repo_name = lookup_alias(reviewer_repo_name).lower()
 
 		if command != "submit":
 			repo_name = reviewer_repo_name + '/' + repo_name.split('/')[1]
