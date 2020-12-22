@@ -121,23 +121,11 @@ import urllib2
 import urlparse
 import webbrowser
 
-# import isodate
-# from datetime import date
-
 from string import Template
 from textwrap import fill
 
 UTF8Writer = codecs.getwriter("utf8")
 sys.stdout = UTF8Writer(sys.stdout)
-
-# Connecting through a proxy,
-# requires: socks.py from http://socksipy.sourceforge.net/ next to this file
-
-# import socket
-# import socks
-
-# socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, "localhost", 8181)
-# socket.socket = socks.socksocket
 
 options = {
 	"debug-mode": False,
