@@ -1062,7 +1062,7 @@ def display_pull_request(pull_request):
 
 			pr_body = "\n".join(pr_body)
 
-		print pr_body
+		print strip_empty_lines(pr_body)
 
 	print
 
@@ -1922,6 +1922,15 @@ def post_comment(repo_name, pull_request_ID, comment):
 	params = {"body": comment}
 
 	github_json_request(url, params)
+
+
+def strip_empty_lines(text):
+	lines = text.splitlines()
+	while lines and not lines[0].strip():
+		lines.pop(0)
+	while lines and not lines[-1].strip():
+		lines.pop()
+	return "\n".join(lines)
 
 
 def update_branch(branch_name):
