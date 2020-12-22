@@ -1062,6 +1062,8 @@ def display_pull_request(pull_request):
 
 			pr_body = "\n".join(pr_body)
 
+		pr_body = strip_html_tags(pr_body)
+
 		print strip_empty_lines(pr_body)
 
 	print
@@ -1931,6 +1933,24 @@ def strip_empty_lines(text):
 	while lines and not lines[-1].strip():
 		lines.pop()
 	return "\n".join(lines)
+
+
+def strip_html_tags(html_raw):
+	tag = False
+	quote = False
+	html = ""
+
+	for line in html_raw:
+			if line == '<' and not quote:
+				tag = True
+			elif line == '>' and not quote:
+				tag = False
+			elif (line == '"' or line == "'") and tag:
+				quote = not quote
+			elif not tag:
+				html += line
+
+	return html
 
 
 def update_branch(branch_name):
