@@ -218,13 +218,13 @@ TMP_PATH = tempfile.gettempdir() + "/%s"
 MAP_RESPONSE = {}
 
 
-def authorize_request(req, token=None):
+def authorize_request(req, token=None, auth_type="token"):
 	"""Add the Authorize header to the request"""
 
 	if token == None:
 		token = auth_token
 
-	req.add_header("Authorization", "token %s" % (token))
+	req.add_header("Authorization", "%s %s" % (auth_type, token))
 
 
 def build_branch_name(pull_request):
@@ -1490,13 +1490,13 @@ def get_work_dir():
 	return _work_dir
 
 
-def github_json_request(url, params=None):
-	data = json.loads(github_request(url, params))
+def github_json_request(url, params=None, authenticate=True):
+	data = json.loads(github_request(url, params, authenticate))
 
 	return data
 
 
-def github_request(url, params=None, token=None):
+def github_request(url, params=None, authenticate=True):
 	if params is not None:
 		encode_data = params
 
@@ -1507,7 +1507,14 @@ def github_request(url, params=None, token=None):
 	else:
 		req = urllib2.Request(url)
 
-		authorize_request(req, token)
+	if authenticate == "basic":
+		passwd = getpass.getpass("Github password: ").strip()
+
+		auth_string = base64.encodestring("%s:%s" % (auth_username, passwd)).strip()
+
+		authorize_request(req, auth_string, "Basic")
+	elif authenticate == True:
+		authorize_request(req)
 
 	if DEBUG:
 		print url
@@ -1517,12 +1524,15 @@ def github_request(url, params=None, token=None):
 	try:
 		response = urllib2.urlopen(req)
 	except urllib2.URLError, msg:
-		if msg.code == 401 and auth_token:
-			raise UserWarning(
-				'Could not authorize you to connect with Github. Try running "git config --global --unset github.oauth-token" and running your command again to reauthenticate.'
+		if authenticate and msg.code == 401 and auth_token:
+			print ""
+			print color_text(
+				'Could not authorize you to connect with Github. Try running "git config --global --unset github.oauth-token" and running your command again to reauthenticate.',
+				"error",
 			)
+			print ""
 
-		raise UserWarning("Could not authorize you to connect with Github.")
+		raise UserWarning("Error communicating with github: \n%s\n%s" % (url, msg))
 
 	data = response.read()
 
@@ -1654,7 +1664,7 @@ def main():
 
 	global users, DEFAULT_USERNAME
 	global _work_dir
-	global auth_token
+	global auth_username, auth_token
 
 	DEBUG = options["debug-mode"]
 
@@ -1714,17 +1724,40 @@ def main():
 		elif o == "--force-color":
 			FORCE_COLOR = True
 
+	if len(username) == 0:
+		username = raw_input("Github username: ").strip()
+		os.system("git config --global github.user %s" % username)
+
+	auth_username = username
+
 	if len(auth_token) == 0:
-		token = getpass.getpass("Github token: ").strip()
+		# Get a list of the current authorized apps and check if we already have a token
+		current_oauth_list = github_json_request(
+			"https://api.github.com/authorizations", None, "basic"
+		)
+		oauth_token = None
 
-		# check if the token is valid
-		github_request("https://api.github.com/user/repos", None, token)
+		for cur in current_oauth_list:
+			if cur["note"] == SCRIPT_NOTE:
+				oauth_token = cur["token"]
 
-		auth_token = token
+		# If we don't have a token, let's create one
+		if not oauth_token:
+			oauth_data = github_json_request(
+				"https://api.github.com/authorizations",
+				'{"scopes": ["repo"],"note": "%s"}' % SCRIPT_NOTE,
+				"basic",
+			)
 
-		os.system("git config --global github.oauth-token %s" % auth_token)
+			oauth_token = oauth_data["token"]
 
-		# get repo name from git config
+		if oauth_token:
+			auth_token = oauth_token
+			os.system("git config --global github.oauth-token %s" % oauth_token)
+		else:
+			raise UserWarning("Could not authenticate you with Github")
+
+	# get repo name from git config
 	if repo_name is None or repo_name == "":
 		repo_name = get_default_repo_name()
 
