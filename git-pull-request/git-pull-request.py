@@ -153,8 +153,6 @@ options = {
 	"close-default-comment": None,
 	# Set the indent character(s) used to indent the description
 	"description-indent": "	",
-	# Set to true to remove the CI comments from the description of the pull
-	"description-strip-CI": True,
 	# Set to true to remove the newlines from the description of the pull
 	# (this will format it as it used to)
 	"description-strip-newlines": False,
@@ -1037,6 +1035,8 @@ def display_pull_request(pull_request):
 	pr_body = pull_request.get("body")
 
 	if pr_body and pr_body.strip():
+		pr_body = strip_html_tags(pr_body)
+
 		pr_body = re.sub("(<br\s?/?>)", "\n", pr_body.strip())
 
 		if options["description-strip-newlines"]:
@@ -1064,10 +1064,6 @@ def display_pull_request(pull_request):
 
 			pr_body = "\n".join(pr_body)
 
-		if options["description-strip-CI"]:
-			pr_body = re.sub("<h3><g-emoji([\s\S]*?)</h5></details>", "", pr_body)
-
-		pr_body = strip_html_tags(pr_body)
 
 		print strip_empty_lines(pr_body)
 
@@ -1908,11 +1904,11 @@ def strip_empty_lines(text):
 
 
 def strip_html_tags(html_raw):
-	tag = False
-	quote = False
 	html = ""
+	quote = False
+	tag = False
 
-	for line in html_raw:
+	for line in re.sub("<html>([\s\S]*?)</html>", "", html_raw):
 			if line == '<' and not quote:
 				tag = True
 			elif line == '>' and not quote:
