@@ -151,6 +151,8 @@ options = {
 	"enable-color": True,
 	# Sets the default comment to post when closing a pull request.
 	"close-default-comment": None,
+	# Limit the number of characters from the description of the pull
+	"description-char-limit": 500,
 	# Set the indent character(s) used to indent the description
 	"description-indent": "	",
 	# Set to true to remove the newlines from the description of the pull
@@ -1064,8 +1066,12 @@ def display_pull_request(pull_request):
 
 			pr_body = "\n".join(pr_body)
 
+		pr_body = strip_empty_lines(pr_body)
 
-		print strip_empty_lines(pr_body)
+		if (options["description-char-limit"] > 0) and (len(pr_body) > options["description-char-limit"]):
+			pr_body = pr_body[:options["description-char-limit"]] + '...'
+
+		print pr_body
 
 	print
 
