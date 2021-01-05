@@ -1507,7 +1507,7 @@ def github_request(url, params=None, token=None):
 	else:
 		req = urllib2.Request(url)
 
-		authorize_request(req, token)
+	authorize_request(req, token)
 
 	if DEBUG:
 		print url
