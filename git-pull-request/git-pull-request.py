@@ -1070,13 +1070,13 @@ def display_pull_request(pull_request):
 
 		pr_body = strip_empty_lines(pr_body)
 
-		if (options["description-line-limit"] > 0) and (len(pr_body.splitlines()) > options["description-line-limit"]):
+		if ((options["description-line-limit"] >= 0) and (len(pr_body.splitlines()) > options["description-line-limit"])):
 			pr_body = pr_body.splitlines()
 			pr_body = pr_body[:options["description-line-limit"]]
 			pr_body = "\n".join(pr_body)
 			pr_body += "..."
 
-		if (options["description-char-limit"] > 0) and (len(pr_body) > options["description-char-limit"]):
+		if ((options["description-char-limit"] >= 0) and (len(pr_body) > options["description-char-limit"])):
 			pr_body = pr_body[:options["description-char-limit"]] + '...'
 
 		print pr_body
