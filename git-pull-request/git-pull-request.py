@@ -155,6 +155,8 @@ options = {
 	"description-char-limit": 500,
 	# Set the indent character(s) used to indent the description
 	"description-indent": "	",
+	# Limit the number of lines from the description of the pull
+	"description-line-limit": 10,
 	# Set to true to remove the newlines from the description of the pull
 	# (this will format it as it used to)
 	"description-strip-newlines": False,
@@ -1067,6 +1069,12 @@ def display_pull_request(pull_request):
 			pr_body = "\n".join(pr_body)
 
 		pr_body = strip_empty_lines(pr_body)
+
+		if (options["description-line-limit"] > 0) and (len(pr_body.splitlines()) > options["description-line-limit"]):
+			pr_body = pr_body.splitlines()
+			pr_body = pr_body[:options["description-line-limit"]]
+			pr_body = "\n".join(pr_body)
+			pr_body += "..."
 
 		if (options["description-char-limit"] > 0) and (len(pr_body) > options["description-char-limit"]):
 			pr_body = pr_body[:options["description-char-limit"]] + '...'
