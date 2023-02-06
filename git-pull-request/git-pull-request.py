@@ -52,6 +52,9 @@ Commands:
 	fetch-all
 		Fetches all open pull requests into local branches.
 
+	forward <pull request ID>
+		Forwards the specified pull request, set -u or --reviewer to specify a different reviewer.
+
 	help
 		Displays this message.
 
@@ -500,6 +503,8 @@ def command_fetch(repo_name, pull_request_ID, auto_update=False):
 	print
 	display_status()
 
+	return pull_request
+
 
 def command_fetch_all(repo_name):
 	"""Fetches all pull requests into local branches"""
@@ -516,6 +521,39 @@ def command_fetch_all(repo_name):
 
 	display_status()
 
+
+def command_forward(repo_name, pull_request_ID, username, reviewer_repo_name):
+	branch_name = get_current_branch_name()
+
+	if branch_name.find('-%s-' % pull_request_ID) == -1:
+		auto_checkout = options['fetch-auto-checkout']
+
+		options['fetch-auto-checkout'] = True
+		old_pull_request = command_fetch(repo_name, pull_request_ID, True)
+		options['fetch-auto-checkout'] = auto_checkout
+	else:
+		old_pull_request = get_pull_request(repo_name, pull_request_ID)
+
+	quoted_body = '' if old_pull_request['body'] is None else '> ' + '\n> '.join(old_pull_request['body'].split('\n'))
+
+	forwarded_body = '/cc @%s\n\nForwarded from %s\n\n%s' % (old_pull_request['user']['login'], old_pull_request['html_url'], quoted_body)
+
+	update_branch_name = options['update-branch']
+
+	options['update-branch'] = old_pull_request['base']['ref']
+
+	new_pull_request = command_submit(
+		repo_name,
+		username,
+		reviewer_repo_name=reviewer_repo_name,
+		pull_body=forwarded_body,
+		pull_title=old_pull_request['title'],
+		submitOpenGitHub=False
+	)
+
+	command_close(repo_name, 'Forwarded to %s' % new_pull_request['html_url'])
+
+	options['update-branch'] = update_branch_name
 
 def command_help():
 	print __doc__
@@ -860,6 +898,8 @@ def command_submit(
 
 	if submitOpenGitHub:
 		open_URL(new_pr_url)
+
+	return pull_request
 
 
 def command_update(repo_name, target=None):
@@ -1779,6 +1819,8 @@ def main():
 			command_fetch(repo_name, args[1], fetch_auto_update)
 		elif command == "fetch-all":
 			command_fetch_all(repo_name)
+		elif command == "forward":
+			command_forward(repo_name, args[1], username, reviewer_repo_name)
 		elif command == "help":
 			command_help()
 		elif command == "info":
