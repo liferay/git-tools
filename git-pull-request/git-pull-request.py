@@ -523,7 +523,7 @@ def command_fetch_all(repo_name):
 
 
 def command_forward(repo_name, pull_request_ID, username, reviewer_repo_name):
-	branch_name = get_current_branch_name()
+	branch_name = get_current_branch_name(False)
 
 	if branch_name.find('-%s-' % pull_request_ID) == -1:
 		auto_checkout = options['fetch-auto-checkout']
