@@ -1784,7 +1784,7 @@ def main():
 	if reviewer_repo_name:
 		reviewer_repo_name = lookup_alias(reviewer_repo_name)
 
-		if command != "submit":
+		if command != 'forward' and command != "submit":
 			repo_name = reviewer_repo_name + "/" + repo_name.split("/")[1]
 
 	DEFAULT_USERNAME = username
