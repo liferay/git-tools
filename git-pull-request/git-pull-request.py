@@ -115,6 +115,7 @@ import codecs
 import getopt
 import getpass
 import json
+import io
 import os
 import re
 import sys
@@ -129,7 +130,7 @@ from textwrap import fill
 from urllib.parse import urlparse
 
 UTF8Writer = codecs.getwriter("utf8")
-sys.stdout = UTF8Writer(sys.stdout)
+sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')
 
 options = {
 	"debug-mode": False,
@@ -221,16 +222,6 @@ SCRIPT_NOTE = "GitPullRequest Script (by Liferay)"
 TMP_PATH = tempfile.gettempdir() + "/%s"
 
 MAP_RESPONSE = {}
-
-
-def authorize_request(req, token=None):
-	"""Add the Authorize header to the request"""
-
-	if token == None:
-		token = auth_token
-
-	req.add_header("Authorization", "token %s" % (token))
-
 
 def build_branch_name(pull_request):
 	"""Returns the local branch name that a pull request should be fetched into"""
@@ -953,7 +944,7 @@ def command_update_users(
 
 	items = github_json_request(url)
 
-	m = re.search("[?&]page=(\d+)", url)
+	m = re.search(r"[?&]page=(\d+)", url)
 
 	if m is not None and m.group(1) != "":
 		print("Doing another request for page: %s of %s" % (m.group(1), total_pages))
@@ -981,7 +972,7 @@ def command_update_users(
 			github_users[email] = login
 
 	if all_pages:
-		link_header = MAP_RESPONSE[url].info().getheader("Link")
+		link_header = MAP_RESPONSE[url].headers.get("Link")
 
 		if link_header is not None:
 			m = re.search('<([^>]+)>; rel="next",', link_header)
@@ -991,7 +982,7 @@ def command_update_users(
 
 				if total_pages == 0:
 					m1 = re.search(
-						'<[^>]+[&?]page=(\d+)[^>]*>; rel="last"', link_header
+						r'<[^>]+[&?]page=(\d+)[^>]*>; rel="last"', link_header
 					)
 
 					if m1 is not None and m1.group(1) != "":
@@ -1082,7 +1073,7 @@ def display_pull_request(pull_request):
 	if pr_body and pr_body.strip():
 		pr_body = strip_html_tags(pr_body)
 
-		pr_body = re.sub("(<br\s?/?>)", "\n", pr_body.strip())
+		pr_body = re.sub(r"(<br\s?/?>)", "\n", pr_body.strip())
 
 		if options["description-strip-newlines"]:
 			pr_body = fill(
@@ -1232,7 +1223,7 @@ def get_git_base_path():
 
 def get_jira_ticket(text):
 	"""Returns a JIRA ticket id from the passed text, or a blank string otherwise"""
-	m = re.search("[A-Z]{3,}-\d+", text)
+	m = re.search(r"[A-Z]{3,}-\d+", text)
 
 	jira_ticket = ""
 
@@ -1324,7 +1315,7 @@ def get_pr_stats(repo_name, pull_request_ID):
 
 		ret = (
 			os.popen(
-				"echo '{2}, {3}' && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | cut -f 3- | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(
+				r"echo '{2}, {3}' && git diff --numstat --pretty='%H' --no-renames {0}..{1} | xargs -0n1 echo -n | cut -f 3- | sed -e 's/^.*\.\(.*\)$/\\1/' | sort | uniq -c | tr '\n' ',' | sed 's/,$//'".format(
 					merge_base, branch_name, shortstat, stats
 				)
 			)
@@ -1402,7 +1393,7 @@ def get_pull_request(repo_name, pull_request_ID):
 def get_pull_request_ID(branch_name):
 	"""Returns the pull request number of the branch with the name"""
 
-	m = re.search("^pull-request-(\d+)", branch_name)
+	m = re.search(r"^pull-request-(\d+)", branch_name)
 
 	pull_request_ID = None
 
@@ -1436,7 +1427,7 @@ def get_repo_name_for_remote(remote_name):
 	remotes = os.popen("git remote -v").read()
 
 	m = re.search(
-		"^%s[^\n]+?github\.com[^\n]*?[:/]([^\n]+?)\.git" % remote_name,
+		r"^%s[^\n]+?github\.com[^\n]*?[:/]([^\n]+?)\.git" % remote_name,
 		remotes,
 		re.MULTILINE,
 	)
@@ -1489,7 +1480,7 @@ def get_user_email(github_user_info):
 			email = email.replace("(", ".")
 			email = email.replace(")", ".")
 
-			email = re.sub("\.+", ".", email)
+			email = re.sub(r"\.+", ".", email)
 
 			# Unicode characters usually do not appear in Liferay emails, so
 			# we'll replace them with the closest ASCII equivalent
@@ -1548,34 +1539,42 @@ def github_json_request(url, params=None):
 
 
 def github_request(url, params=None, token=None):
-	if params is not None:
-		encode_data = params
+	headers = {
+		"Accept" : "application/vnd.github.v3+json"
+	}
 
-		if not isinstance(params, str):
-			encode_data = json.dumps(params)
+	bearer_token = token if token else auth_token
+	
+	headers["Authorization"] = "Bearer %s" % (bearer_token)
 
-		req = urllib2.Request(url, encode_data)
-	else:
-		req = urllib2.Request(url)
+	encode_data = params
 
-	authorize_request(req, token)
-
+	if encode_data:
+		if not isinstance(encode_data, str):
+			encode_data = json.dumps(params).encode('utf-8')
+	
 	if DEBUG:
 		print(url)
 
-	req.add_header("Accept", "application/vnd.github.v3+json")
+	response = None
 
 	try:
-		response = urllib2.urlopen(req)
-	except urllib2.URLError as msg:
-		if msg.code == 401 and auth_token:
+		http = urllib3.PoolManager()
+
+		if encode_data:
+			response = http.request("POST", url, body=encode_data, headers=headers)
+		else:
+			response = http.request("GET", url, headers=headers)
+
+	except Exception:
+		if response.status == 401 and auth_token:
 			raise UserWarning(
 				'Could not authorize you to connect with Github. Try running "git config --global --unset github.oauth-token" and running your command again to reauthenticate.'
 			)
 
 		raise UserWarning("Could not authorize you to connect with Github.")
 
-	data = response.read()
+	data = response.data.decode("utf-8")
 
 	MAP_RESPONSE[url] = response
 
@@ -1606,7 +1605,7 @@ def load_options():
 	overrides = {}
 
 	matches = re.findall(
-		"^git-pull-request\.([^=]+)=([^\n]*)$", all_config, re.MULTILINE
+		r"^git-pull-request\.([^=]+)=([^\n]*)$", all_config, re.MULTILINE
 	)
 
 	for k in matches:
@@ -1965,7 +1964,7 @@ def strip_html_tags(html_raw):
 	quote = False
 	tag = False
 
-	for line in re.sub("<html>([\s\S]*?)</html>", "", html_raw):
+	for line in re.sub(r"<html>([\s\S]*?)</html>", "", html_raw):
 			if line == '<' and not quote:
 				tag = True
 			elif line == '>' and not quote:
