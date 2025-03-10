@@ -114,8 +114,8 @@ import base64
 import codecs
 import getopt
 import getpass
-import json
 import io
+import json
 import os
 import re
 import sys
