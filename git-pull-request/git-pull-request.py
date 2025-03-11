@@ -127,7 +127,6 @@ import webbrowser
 
 from string import Template
 from textwrap import fill
-from urllib.parse import urlparse
 
 UTF8Writer = codecs.getwriter("utf8")
 sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')
@@ -739,7 +738,7 @@ def command_show_alias(alias):
 	"""Shows the username where the alias points to"""
 
 	user_item = next(
-		(user for user in users.iteritems() if user[0] == alias or user[1] == alias),
+		(user for user in users.items() if user[0] == alias or user[1] == alias),
 		None,
 	)
 
@@ -931,13 +930,13 @@ def command_update_users(
 
 			params = {"per_page": "100", "sort": "oldest"}
 
-			url_parts = list(urlparse.urlparse(url))
-			query = dict(urlparse.parse_qsl(url_parts[4]))
+			url_parts = list(urllib.parse.urlparse(url))
+			query = dict(urllib.parse.parse_qsl(url_parts[4]))
 			query.update(params)
 
-			url_parts[4] = urllib.urlencode(query)
+			url_parts[4] = urllib.parse.urlencode(query)
 
-			url = urlparse.urlunparse(url_parts)
+			url = urllib.parse.urlunparse(url_parts)
 
 	if github_users is None:
 		github_users = {}
@@ -975,7 +974,7 @@ def command_update_users(
 		link_header = MAP_RESPONSE[url].headers.get("Link")
 
 		if link_header is not None:
-			m = re.search('<([^>]+)>; rel="next",', link_header)
+			m = re.search(r'<([^>]+)>; rel="next",', link_header)
 
 			if m is not None and m.group(1) != "":
 				url = m.group(1)
